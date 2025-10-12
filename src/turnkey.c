@@ -1,5 +1,7 @@
 #include "turnkey.h"
+#include "compiler.h"
 #include "io.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,7 +67,11 @@ bool turnkey_generate_stack_code(FILE *output, rforth_stack_t *stack) {
     if (depth > 0) {
         fprintf(output, "    /* Initialize stack with current values */\n");
         for (int i = 0; i <= stack->sp; i++) {
-            fprintf(output, "    push(%ld);\n", (long)stack->data[i]);
+            if (stack->data[i].type == CELL_INT) {
+                fprintf(output, "    push_int(%ld);\n", (long)stack->data[i].value.i);
+            } else {
+                fprintf(output, "    push_float(%.6g);\n", stack->data[i].value.f);
+            }
         }
         fprintf(output, "\n");
     }
@@ -77,8 +83,8 @@ bool turnkey_create_executable(rforth_ctx_t *ctx, const char *output_file) {
     if (!ctx || !output_file) return false;
     
     /* Generate C filename */
-    char c_filename[256];
-    snprintf(c_filename, sizeof(c_filename), "%s.c", output_file);
+    char c_filename[MAX_FILENAME_LENGTH];
+    snprintf(c_filename, sizeof(c_filename), "%s%s", output_file, C_FILE_EXTENSION);
     
     /* Open C file for writing */
     FILE *c_file = fopen(c_filename, "w");
@@ -93,9 +99,13 @@ bool turnkey_create_executable(rforth_ctx_t *ctx, const char *output_file) {
     fprintf(c_file, "#include <stdlib.h>\n");
     fprintf(c_file, "#include <stdint.h>\n\n");
     
+    /* Generate configuration constants */
+    fprintf(c_file, "/* Configuration constants */\n");
+    fprintf(c_file, "#define DEFAULT_STACK_SIZE %d\n\n", DEFAULT_STACK_SIZE);
+    
     /* Generate runtime stack */
     fprintf(c_file, "/* Runtime stack */\n");
-    fprintf(c_file, "static int64_t stack[256];\n");
+    fprintf(c_file, "static int64_t stack[DEFAULT_STACK_SIZE];\n");
     fprintf(c_file, "static int sp = -1;\n\n");
     
     /* Generate stack operations */
@@ -204,7 +214,7 @@ void builtin_turnkey(rforth_ctx_t *ctx) {
     /* this could be more sophisticated */
     
     if (!turnkey_create_executable(ctx, "turnkey_app")) {
-        ctx->last_error = RFORTH_ERROR_COMPILE_ERROR;
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_COMPILE_ERROR, "TURNKEY failed");
         io_error_string("Error: TURNKEY failed\n");
     }
 }

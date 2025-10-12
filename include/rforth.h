@@ -7,16 +7,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* Version information */
-#define RFORTH_VERSION_MAJOR 1
-#define RFORTH_VERSION_MINOR 0
-#define RFORTH_VERSION_PATCH 0
-
 /* Configuration constants */
-#define MAX_WORD_LENGTH 64
-#define MAX_INPUT_LENGTH 1024
-#define DEFAULT_STACK_SIZE 256
-#define DEFAULT_RETURN_STACK_SIZE 256
+#include "config.h"
 
 /* Include other headers */
 #include "stack.h"
@@ -28,14 +20,64 @@
 /* Error codes */
 typedef enum {
     RFORTH_OK = 0,
+    
+    /* Stack errors */
     RFORTH_ERROR_STACK_UNDERFLOW,
     RFORTH_ERROR_STACK_OVERFLOW,
+    RFORTH_ERROR_RETURN_STACK_UNDERFLOW,
+    RFORTH_ERROR_RETURN_STACK_OVERFLOW,
+    
+    /* Dictionary errors */
     RFORTH_ERROR_WORD_NOT_FOUND,
+    RFORTH_ERROR_WORD_REDEFINED,
+    RFORTH_ERROR_DICT_FULL,
+    
+    /* Parser errors */
     RFORTH_ERROR_PARSE_ERROR,
-    RFORTH_ERROR_FILE_ERROR,
+    RFORTH_ERROR_SYNTAX_ERROR,
+    RFORTH_ERROR_UNEXPECTED_EOF,
+    RFORTH_ERROR_INVALID_NUMBER,
+    RFORTH_ERROR_UNTERMINATED_STRING,
+    
+    /* File errors */
+    RFORTH_ERROR_FILE_NOT_FOUND,
+    RFORTH_ERROR_FILE_READ_ERROR,
+    RFORTH_ERROR_FILE_WRITE_ERROR,
+    RFORTH_ERROR_FILE_PERMISSION,
+    
+    /* Compiler errors */
     RFORTH_ERROR_COMPILE_ERROR,
-    RFORTH_ERROR_MEMORY
+    RFORTH_ERROR_COMPILER_NOT_FOUND,
+    RFORTH_ERROR_LINK_ERROR,
+    
+    /* Memory errors */
+    RFORTH_ERROR_MEMORY,
+    RFORTH_ERROR_NULL_POINTER,
+    RFORTH_ERROR_BUFFER_OVERFLOW,
+    
+    /* I/O errors */
+    RFORTH_ERROR_IO_TIMEOUT,
+    RFORTH_ERROR_IO_FAILURE,
+    RFORTH_ERROR_IO_NOT_AVAILABLE,
+    
+    /* Runtime errors */
+    RFORTH_ERROR_DIVISION_BY_ZERO,
+    RFORTH_ERROR_INVALID_OPERATION,
+    RFORTH_ERROR_EXECUTION_ERROR,
+    
+    /* Generic error */
+    RFORTH_ERROR_UNKNOWN
 } rforth_error_t;
+
+/* Error context for detailed error reporting */
+typedef struct {
+    rforth_error_t code;
+    const char *message;
+    const char *function;
+    const char *filename;
+    int line;
+    int column;
+} rforth_error_context_t;
 
 /* Forward declarations */
 typedef struct rforth_ctx rforth_ctx_t;
@@ -49,7 +91,7 @@ struct rforth_ctx {
     parse_state_t state;       /* Interpreter state */
     char *compile_word_name;   /* Word being compiled */
     bool running;              /* Interpreter running flag */
-    rforth_error_t last_error; /* Last error code */
+    rforth_error_context_t last_error; /* Last error with context */
 };
 
 /* Main API functions */
@@ -59,6 +101,20 @@ int rforth_repl(rforth_ctx_t *ctx);
 int rforth_interpret_file(rforth_ctx_t *ctx, const char *filename);
 int rforth_interpret_string(rforth_ctx_t *ctx, const char *input);
 int rforth_compile_file(rforth_ctx_t *ctx, const char *input_file, const char *output_file);
+
+/* Error handling functions */
+void rforth_set_error(rforth_ctx_t *ctx, rforth_error_t code, const char *message, 
+                      const char *function, const char *filename, int line, int column);
+void rforth_clear_error(rforth_ctx_t *ctx);
+const char* rforth_error_string(rforth_error_t code);
+void rforth_print_error(rforth_ctx_t *ctx);
+
+/* Error handling macros */
+#define RFORTH_SET_ERROR(ctx, code, message) \
+    rforth_set_error(ctx, code, message, __func__, __FILE__, __LINE__, 0)
+
+#define RFORTH_SET_PARSE_ERROR(ctx, code, message, line, col) \
+    rforth_set_error(ctx, code, message, __func__, __FILE__, line, col)
 
 /* Builtin word registration */
 bool builtins_register(dict_t *dict);

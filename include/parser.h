@@ -18,7 +18,8 @@ typedef enum {
 /* Token types */
 typedef enum {
     TOKEN_WORD,         /* Word name */
-    TOKEN_NUMBER,       /* Numeric literal */
+    TOKEN_NUMBER,       /* Integer numeric literal */
+    TOKEN_FLOAT,        /* Floating point literal */
     TOKEN_STRING,       /* String literal */
     TOKEN_COLON,        /* : (start definition) */
     TOKEN_SEMICOLON,    /* ; (end definition) */
@@ -32,7 +33,10 @@ typedef enum {
 typedef struct {
     token_type_t type;
     char text[MAX_WORD_LENGTH];
-    int64_t number;     /* For numeric tokens */
+    union {
+        int64_t number;     /* For integer tokens */
+        double float_val;   /* For floating point tokens */
+    };
     int line, col;      /* Position in source */
 } token_t;
 
@@ -53,6 +57,7 @@ void parser_destroy(parser_t *parser);
 void parser_set_input(parser_t *parser, const char *input);
 token_t parser_next_token(parser_t *parser);
 bool parser_is_number(const char *text, int64_t *value);
+bool parser_is_float(const char *text, double *value);
 void parser_skip_whitespace(parser_t *parser);
 void parser_skip_comment(parser_t *parser);
 

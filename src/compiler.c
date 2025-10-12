@@ -1,5 +1,6 @@
 #include "compiler.h"
 #include "rforth.h"
+#include "config.h"
 #include <ctype.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -55,7 +56,7 @@ static void generate_word_call(FILE *output, const char *word_name) {
         fprintf(output, "    forth_swap();\n");
     } else {
         /* Assume it's a user word */
-        char c_name[256];
+        char c_name[MAX_FILENAME_LENGTH];
         word_name_to_c_identifier(word_name, c_name, sizeof(c_name));
         fprintf(output, "    word_%s();\n", c_name);
     }
@@ -70,12 +71,13 @@ compiler_ctx_t* compiler_create(const char *output_file) {
     if (!compiler) return NULL;
     
     /* Generate temporary C filename */
-    compiler->output_filename = malloc(strlen(output_file) + 10);
+    compiler->output_filename = malloc(strlen(output_file) + strlen(C_FILE_EXTENSION) + 1);
     if (!compiler->output_filename) {
         free(compiler);
         return NULL;
     }
-    snprintf(compiler->output_filename, strlen(output_file) + 10, "%s.c", output_file);
+    snprintf(compiler->output_filename, strlen(output_file) + strlen(C_FILE_EXTENSION) + 1, 
+             "%s%s", output_file, C_FILE_EXTENSION);
     
     /* Store executable name */
     compiler->executable_name = malloc(strlen(output_file) + 1);
@@ -121,7 +123,7 @@ bool compiler_generate_header(compiler_ctx_t *compiler) {
     
     /* Runtime declarations */
     fprintf(compiler->output, "/* Runtime stack */\n");
-    fprintf(compiler->output, "static int64_t stack[256];\n");
+    fprintf(compiler->output, "static int64_t stack[DEFAULT_STACK_SIZE];\n");
     fprintf(compiler->output, "static int sp = -1;\n\n");
     
     /* Runtime functions */
@@ -308,7 +310,7 @@ bool compile_forth_to_c(const char *input_file, const char *output_file) {
             }
             
             /* Collect definition until semicolon */
-            char definition[1024] = "";
+            char definition[MAX_DEFINITION_LENGTH] = "";
             int def_pos = 0;
             
             while ((token = parser_next_token(parser)).type != TOKEN_EOF) {
@@ -322,7 +324,7 @@ bool compile_forth_to_c(const char *input_file, const char *output_file) {
                 }
                 
                 const char *token_text = NULL;
-                char number_str[32];
+                char number_str[MAX_NUMBER_STRING_LENGTH];
                 
                 if (token.type == TOKEN_NUMBER) {
                     snprintf(number_str, sizeof(number_str), "%ld", (long)token.number);
@@ -370,7 +372,7 @@ bool compile_forth_to_c(const char *input_file, const char *output_file) {
             }
             
             const char *token_text = NULL;
-            char number_str[32];
+            char number_str[MAX_NUMBER_STRING_LENGTH];
             
             if (token.type == TOKEN_NUMBER) {
                 snprintf(number_str, sizeof(number_str), "%ld", (long)token.number);

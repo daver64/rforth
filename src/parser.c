@@ -105,6 +105,24 @@ bool parser_is_number(const char *text, int64_t *value) {
     return false;
 }
 
+bool parser_is_float(const char *text, double *value) {
+    if (!text || !*text) return false;
+    
+    char *endptr;
+    double result = strtod(text, &endptr);
+    
+    /* Check if entire string was consumed and contains decimal point or exponent */
+    if (*endptr == '\0' && endptr != text) {
+        /* Must contain '.' or 'e'/'E' to be considered a float */
+        if (strchr(text, '.') || strchr(text, 'e') || strchr(text, 'E')) {
+            if (value) *value = result;
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 token_t parser_next_token(parser_t *parser) {
     token_t token = {0};
     
@@ -190,9 +208,14 @@ token_t parser_next_token(parser_t *parser) {
     }
     token.text[i] = '\0';
     
-    /* Determine if it's a number or word */
+    /* Determine if it's a number, float, or word */
     int64_t number_value;
-    if (parser_is_number(token.text, &number_value)) {
+    double float_value;
+    
+    if (parser_is_float(token.text, &float_value)) {
+        token.type = TOKEN_FLOAT;
+        token.float_val = float_value;
+    } else if (parser_is_number(token.text, &number_value)) {
         token.type = TOKEN_NUMBER;
         token.number = number_value;
     } else {

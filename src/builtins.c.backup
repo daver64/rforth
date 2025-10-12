@@ -1,7 +1,6 @@
 #include "rforth.h"
 #include "turnkey.h"
 #include <stdio.h>
-#include <math.h>
 
 /* Forward declarations */
 static void builtin_add(rforth_ctx_t *ctx);
@@ -27,13 +26,6 @@ static void builtin_and(rforth_ctx_t *ctx);
 static void builtin_or(rforth_ctx_t *ctx);
 static void builtin_not(rforth_ctx_t *ctx);
 static void builtin_negate(rforth_ctx_t *ctx);
-
-/* Floating point specific words */
-static void builtin_f_dot(rforth_ctx_t *ctx);
-static void builtin_int_to_float(rforth_ctx_t *ctx);
-static void builtin_float_to_int(rforth_ctx_t *ctx);
-static void builtin_sqrt(rforth_ctx_t *ctx);
-static void builtin_abs(rforth_ctx_t *ctx);
 
 /* Structure to hold builtin word definitions */
 typedef struct {
@@ -73,13 +65,6 @@ static const builtin_word_t builtin_words[] = {
     {"and", builtin_and},
     {"or", builtin_or},
     {"not", builtin_not},
-    
-    /* Floating point */
-    {"f.", builtin_f_dot},
-    {">float", builtin_int_to_float},
-    {">int", builtin_float_to_int},
-    {"sqrt", builtin_sqrt},
-    {"abs", builtin_abs},
     
     /* System */
     {".s", builtin_dot_s},
@@ -145,15 +130,7 @@ static void builtin_mul(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    /* If either operand is float, do floating point arithmetic */
-    if (a.type == CELL_FLOAT || b.type == CELL_FLOAT) {
-        double result = cell_to_float(&a) * cell_to_float(&b);
-        stack_push_float(ctx->data_stack, result);
-    } else {
-        int64_t result = a.value.i * b.value.i;
-        stack_push_int(ctx->data_stack, result);
-    }
+    stack_push(ctx->data_stack, a * b);
 }
 
 static void builtin_div(rforth_ctx_t *ctx) {
@@ -162,22 +139,11 @@ static void builtin_div(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    /* Check for division by zero */
-    if ((b.type == CELL_INT && b.value.i == 0) || 
-        (b.type == CELL_FLOAT && b.value.f == 0.0)) {
+    if (b == 0) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_DIVISION_BY_ZERO, "Division by zero");
         return;
     }
-    
-    /* If either operand is float, do floating point arithmetic */
-    if (a.type == CELL_FLOAT || b.type == CELL_FLOAT) {
-        double result = cell_to_float(&a) / cell_to_float(&b);
-        stack_push_float(ctx->data_stack, result);
-    } else {
-        int64_t result = a.value.i / b.value.i;
-        stack_push_int(ctx->data_stack, result);
-    }
+    stack_push(ctx->data_stack, a / b);
 }
 
 static void builtin_mod(rforth_ctx_t *ctx) {
@@ -186,20 +152,11 @@ static void builtin_mod(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    /* Mod only works with integers */
-    if (a.type != CELL_INT || b.type != CELL_INT) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_INVALID_OPERATION, "Mod requires integer operands");
-        return;
-    }
-    
-    if (b.value.i == 0) {
+    if (b == 0) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_DIVISION_BY_ZERO, "Division by zero");
         return;
     }
-    
-    int64_t result = a.value.i % b.value.i;
-    stack_push_int(ctx->data_stack, result);
+    stack_push(ctx->data_stack, a % b);
 }
 
 static void builtin_negate(rforth_ctx_t *ctx) {
@@ -208,12 +165,7 @@ static void builtin_negate(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    if (a.type == CELL_INT) {
-        stack_push_int(ctx->data_stack, -a.value.i);
-    } else {
-        stack_push_float(ctx->data_stack, -a.value.f);
-    }
+    stack_push(ctx->data_stack, -a);
 }
 
 static void builtin_dup(rforth_ctx_t *ctx) {
@@ -252,12 +204,7 @@ static void builtin_dot(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    if (value.type == CELL_INT) {
-        printf("%ld ", (long)value.value.i);
-    } else {
-        printf("%.6g ", value.value.f);
-    }
+    printf("%ld ", (long)value);
 }
 
 static void builtin_emit(rforth_ctx_t *ctx) {
@@ -266,14 +213,7 @@ static void builtin_emit(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    int ch;
-    if (value.type == CELL_INT) {
-        ch = (int)value.value.i;
-    } else {
-        ch = (int)value.value.f;
-    }
-    printf("%c", ch);
+    printf("%c", (char)value);
 }
 
 static void builtin_cr(rforth_ctx_t *ctx) {
@@ -309,15 +249,7 @@ static void builtin_equal(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    bool result;
-    if (a.type == CELL_INT && b.type == CELL_INT) {
-        result = (a.value.i == b.value.i);
-    } else {
-        result = (cell_to_float(&a) == cell_to_float(&b));
-    }
-    
-    stack_push_int(ctx->data_stack, result ? -1 : 0);
+    stack_push(ctx->data_stack, (a == b) ? -1 : 0);
 }
 
 static void builtin_less(rforth_ctx_t *ctx) {
@@ -326,15 +258,7 @@ static void builtin_less(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    bool result;
-    if (a.type == CELL_INT && b.type == CELL_INT) {
-        result = (a.value.i < b.value.i);
-    } else {
-        result = (cell_to_float(&a) < cell_to_float(&b));
-    }
-    
-    stack_push_int(ctx->data_stack, result ? -1 : 0);
+    stack_push(ctx->data_stack, (a < b) ? -1 : 0);
 }
 
 static void builtin_greater(rforth_ctx_t *ctx) {
@@ -343,15 +267,7 @@ static void builtin_greater(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    bool result;
-    if (a.type == CELL_INT && b.type == CELL_INT) {
-        result = (a.value.i > b.value.i);
-    } else {
-        result = (cell_to_float(&a) > cell_to_float(&b));
-    }
-    
-    stack_push_int(ctx->data_stack, result ? -1 : 0);
+    stack_push(ctx->data_stack, (a > b) ? -1 : 0);
 }
 
 static void builtin_and(rforth_ctx_t *ctx) {
@@ -360,14 +276,7 @@ static void builtin_and(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    /* Bitwise operations only work with integers */
-    if (a.type != CELL_INT || b.type != CELL_INT) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_INVALID_OPERATION, "Bitwise operations require integer operands");
-        return;
-    }
-    
-    stack_push_int(ctx->data_stack, a.value.i & b.value.i);
+    stack_push(ctx->data_stack, a & b);
 }
 
 static void builtin_or(rforth_ctx_t *ctx) {
@@ -376,14 +285,7 @@ static void builtin_or(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    /* Bitwise operations only work with integers */
-    if (a.type != CELL_INT || b.type != CELL_INT) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_INVALID_OPERATION, "Bitwise operations require integer operands");
-        return;
-    }
-    
-    stack_push_int(ctx->data_stack, a.value.i | b.value.i);
+    stack_push(ctx->data_stack, a | b);
 }
 
 static void builtin_not(rforth_ctx_t *ctx) {
@@ -392,84 +294,5 @@ static void builtin_not(rforth_ctx_t *ctx) {
         RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
         return;
     }
-    
-    /* Bitwise operations only work with integers */
-    if (a.type != CELL_INT) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_INVALID_OPERATION, "Bitwise operations require integer operands");
-        return;
-    }
-    
-    stack_push_int(ctx->data_stack, ~a.value.i);
-}
-
-/* Floating point specific words */
-
-static void builtin_f_dot(rforth_ctx_t *ctx) {
-    cell_t value;
-    if (!stack_pop(ctx->data_stack, &value)) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
-        return;
-    }
-    
-    /* Always print as floating point */
-    printf("%.6g ", cell_to_float(&value));
-}
-
-static void builtin_int_to_float(rforth_ctx_t *ctx) {
-    cell_t value;
-    if (!stack_pop(ctx->data_stack, &value)) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
-        return;
-    }
-    
-    if (value.type == CELL_INT) {
-        stack_push_float(ctx->data_stack, (double)value.value.i);
-    } else {
-        stack_push_cell(ctx->data_stack, value);  /* Already float */
-    }
-}
-
-static void builtin_float_to_int(rforth_ctx_t *ctx) {
-    cell_t value;
-    if (!stack_pop(ctx->data_stack, &value)) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
-        return;
-    }
-    
-    if (value.type == CELL_FLOAT) {
-        stack_push_int(ctx->data_stack, (int64_t)value.value.f);
-    } else {
-        stack_push_cell(ctx->data_stack, value);  /* Already int */
-    }
-}
-
-static void builtin_sqrt(rforth_ctx_t *ctx) {
-    cell_t value;
-    if (!stack_pop(ctx->data_stack, &value)) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
-        return;
-    }
-    
-    double input = cell_to_float(&value);
-    if (input < 0.0) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_INVALID_OPERATION, "Square root of negative number");
-        return;
-    }
-    
-    stack_push_float(ctx->data_stack, sqrt(input));
-}
-
-static void builtin_abs(rforth_ctx_t *ctx) {
-    cell_t value;
-    if (!stack_pop(ctx->data_stack, &value)) {
-        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "Stack underflow");
-        return;
-    }
-    
-    if (value.type == CELL_INT) {
-        int64_t abs_val = value.value.i < 0 ? -value.value.i : value.value.i;
-        stack_push_int(ctx->data_stack, abs_val);
-    } else {
-        stack_push_float(ctx->data_stack, fabs(value.value.f));
-    }
+    stack_push(ctx->data_stack, ~a);
 }

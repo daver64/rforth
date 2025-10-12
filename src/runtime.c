@@ -36,15 +36,28 @@ cell_t rf_pop(void) {
     if (runtime_sp >= 0) {
         return runtime_stack[runtime_sp--];
     }
-    return 0;
+    cell_t zero = {0};
+    zero.type = CELL_INT;
+    zero.value.i = 0;
+    return zero;
 }
 
 void rf_print_num(cell_t value) {
-    printf("%ld ", (long)value);
+    if (value.type == CELL_INT) {
+        printf("%ld ", (long)value.value.i);
+    } else {
+        printf("%.6g ", value.value.f);
+    }
 }
 
 void rf_print_char(cell_t value) {
-    printf("%c", (char)value);
+    int ch;
+    if (value.type == CELL_INT) {
+        ch = (int)value.value.i;
+    } else {
+        ch = (int)value.value.f;
+    }
+    printf("%c", ch);
 }
 
 void rf_newline(void) {

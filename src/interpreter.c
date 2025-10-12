@@ -33,7 +33,7 @@ rforth_ctx_t* rforth_init(void) {
     ctx->state = PARSE_INTERPRET;
     ctx->compile_word_name = NULL;
     ctx->running = true;
-    ctx->last_error = RFORTH_OK;
+    rforth_clear_error(ctx);
     
     /* Register builtin words */
     if (!builtins_register(ctx->dict)) {
@@ -56,29 +56,23 @@ void rforth_cleanup(rforth_ctx_t *ctx) {
     free(ctx);
 }
 
-static const char* error_string(rforth_error_t error) {
-    switch (error) {
-        case RFORTH_OK: return "OK";
-        case RFORTH_ERROR_STACK_UNDERFLOW: return "Stack underflow";
-        case RFORTH_ERROR_STACK_OVERFLOW: return "Stack overflow";
-        case RFORTH_ERROR_WORD_NOT_FOUND: return "Word not found";
-        case RFORTH_ERROR_PARSE_ERROR: return "Parse error";
-        case RFORTH_ERROR_FILE_ERROR: return "File error";
-        case RFORTH_ERROR_COMPILE_ERROR: return "Compile error";
-        case RFORTH_ERROR_MEMORY: return "Memory error";
-        default: return "Unknown error";
-    }
-}
-
-static bool interpret_token(rforth_ctx_t *ctx, token_t *token) {
-    ctx->last_error = RFORTH_OK;
+static rforth_error_t interpret_token(rforth_ctx_t *ctx, token_t *token) {
+    rforth_clear_error(ctx);
     
     switch (token->type) {
         case TOKEN_NUMBER:
-            /* Push number onto stack */
-            if (!stack_push(ctx->data_stack, token->number)) {
-                ctx->last_error = RFORTH_ERROR_STACK_OVERFLOW;
-                return false;
+            /* Push integer onto stack */
+            if (!stack_push_int(ctx->data_stack, token->number)) {
+                RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Stack overflow pushing number");
+                return RFORTH_ERROR_STACK_OVERFLOW;
+            }
+            break;
+            
+        case TOKEN_FLOAT:
+            /* Push floating point value onto stack */
+            if (!stack_push_float(ctx->data_stack, token->float_val)) {
+                RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Stack overflow pushing float");
+                return RFORTH_ERROR_STACK_OVERFLOW;
             }
             break;
             
@@ -87,12 +81,12 @@ static bool interpret_token(rforth_ctx_t *ctx, token_t *token) {
             word_t *word = dict_find(ctx->dict, token->text);
             if (word) {
                 word_execute(ctx, word);
-                if (ctx->last_error != RFORTH_OK) {
-                    return false;
+                if (ctx->last_error.code != RFORTH_OK) {
+                    return ctx->last_error.code;
                 }
             } else {
-                ctx->last_error = RFORTH_ERROR_WORD_NOT_FOUND;
-                return false;
+                RFORTH_SET_PARSE_ERROR(ctx, RFORTH_ERROR_WORD_NOT_FOUND, "Word not found", token->line, token->col);
+                return RFORTH_ERROR_WORD_NOT_FOUND;
             }
             break;
         }
@@ -100,9 +94,8 @@ static bool interpret_token(rforth_ctx_t *ctx, token_t *token) {
         case TOKEN_COLON:
             /* Start word definition */
             if (ctx->state == PARSE_COMPILE) {
-                ctx->last_error = RFORTH_ERROR_PARSE_ERROR;
-                fprintf(stderr, "Error: Nested definitions not allowed\n");
-                return false;
+                RFORTH_SET_ERROR(ctx, RFORTH_ERROR_SYNTAX_ERROR, "Nested definitions not allowed");
+                return RFORTH_ERROR_SYNTAX_ERROR;
             }
             ctx->state = PARSE_COMPILE;
             break;
@@ -110,9 +103,8 @@ static bool interpret_token(rforth_ctx_t *ctx, token_t *token) {
         case TOKEN_SEMICOLON:
             /* End word definition */
             if (ctx->state != PARSE_COMPILE) {
-                ctx->last_error = RFORTH_ERROR_PARSE_ERROR;
-                fprintf(stderr, "Error: Unexpected ';' outside definition\n");
-                return false;
+                RFORTH_SET_ERROR(ctx, RFORTH_ERROR_SYNTAX_ERROR, "Unexpected ';' outside definition");
+                return RFORTH_ERROR_SYNTAX_ERROR;
             }
             ctx->state = PARSE_INTERPRET;
             break;
@@ -123,22 +115,22 @@ static bool interpret_token(rforth_ctx_t *ctx, token_t *token) {
             
         case TOKEN_STRING:
             /* String literals not implemented yet */
-            ctx->last_error = RFORTH_ERROR_PARSE_ERROR;
-            return false;
+            RFORTH_SET_ERROR(ctx, RFORTH_ERROR_PARSE_ERROR, "String literals not implemented");
+            return RFORTH_ERROR_PARSE_ERROR;
             
         case TOKEN_EOF:
-            return true;
+            break;
             
         case TOKEN_ERROR:
-            ctx->last_error = RFORTH_ERROR_PARSE_ERROR;
-            return false;
+            RFORTH_SET_ERROR(ctx, RFORTH_ERROR_PARSE_ERROR, "Parse error");
+            return RFORTH_ERROR_PARSE_ERROR;
             
         default:
-            ctx->last_error = RFORTH_ERROR_PARSE_ERROR;
-            return false;
+            RFORTH_SET_ERROR(ctx, RFORTH_ERROR_PARSE_ERROR, "Unknown token type");
+            return RFORTH_ERROR_PARSE_ERROR;
     }
     
-    return true;
+    return RFORTH_OK;
 }
 
 int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
@@ -180,7 +172,7 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
             word_name[strlen(name_token.text)] = '\0';
             
             /* Initialize compile buffer */
-            compile_buffer_size = 1024;
+            compile_buffer_size = COMPILE_BUFFER_INITIAL_SIZE;
             compile_buffer = malloc(compile_buffer_size);
             if (!compile_buffer) {
                 fprintf(stderr, "Error: Memory allocation failed\n");
@@ -219,7 +211,7 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
         if (ctx->state == PARSE_COMPILE) {
             /* Compiling mode - add token to definition */
             const char *token_text = NULL;
-            char number_str[32];
+            char number_str[MAX_NUMBER_STRING_LENGTH];
             
             if (token.type == TOKEN_NUMBER) {
                 snprintf(number_str, sizeof(number_str), "%ld", (long)token.number);
@@ -254,13 +246,13 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
             
         } else {
             /* Interpreting mode - execute token */
-            if (!interpret_token(ctx, &token)) {
-                if (ctx->last_error == RFORTH_ERROR_WORD_NOT_FOUND) {
+            rforth_error_t result = interpret_token(ctx, &token);
+            if (result != RFORTH_OK) {
+                if (ctx->last_error.code == RFORTH_ERROR_WORD_NOT_FOUND) {
                     fprintf(stderr, "Error: Word '%s' not found at line %d, col %d\n", 
                             token.text, token.line, token.col);
                 } else {
-                    fprintf(stderr, "Error: %s at line %d, col %d\n", 
-                            error_string(ctx->last_error), token.line, token.col);
+                    rforth_print_error(ctx);
                 }
                 goto error;
             }
@@ -340,7 +332,7 @@ int rforth_repl(rforth_ctx_t *ctx) {
         
         /* Interpret the input */
         if (rforth_interpret_string(ctx, input) == 0) {
-            if (ctx->last_error == RFORTH_OK) {
+            if (ctx->last_error.code == RFORTH_OK) {
                 printf("ok");
                 if (stack_depth(ctx->data_stack) > 0) {
                     printf(" ");

@@ -152,7 +152,11 @@ void dict_print(dict_t *dict) {
         printf("  %-20s (%s)", current->name, type_str);
         
         if (current->type == WORD_CONSTANT || current->type == WORD_VARIABLE) {
-            printf(" = %ld", (long)current->code.value);
+            if (current->code.value.type == CELL_INT) {
+                printf(" = %ld", (long)current->code.value.value.i);
+            } else {
+                printf(" = %.6g", current->code.value.value.f);
+            }
         } else if (current->type == WORD_USER) {
             printf(" : %s", current->code.definition ? current->code.definition : "<null>");
         }
@@ -182,7 +186,7 @@ void word_execute(rforth_ctx_t *ctx, word_t *word) {
                 /* Create temporary parser for user word execution */
                 ctx->parser = parser_create();
                 if (!ctx->parser) {
-                    ctx->last_error = RFORTH_ERROR_MEMORY;
+                    RFORTH_SET_ERROR(ctx, RFORTH_ERROR_MEMORY, "Failed to create parser for word execution");
                     ctx->parser = saved_parser;
                     return;
                 }
@@ -197,9 +201,9 @@ void word_execute(rforth_ctx_t *ctx, word_t *word) {
                 
                 if (result != 0) {
                     /* Error occurred during user word execution */
-                    if (ctx->last_error == RFORTH_OK) {
+                    if (ctx->last_error.code == RFORTH_OK) {
                         /* Set a generic error if none was set */
-                        ctx->last_error = RFORTH_ERROR_PARSE_ERROR;
+                        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_EXECUTION_ERROR, "Error executing user word");
                     }
                 }
             }
@@ -207,12 +211,12 @@ void word_execute(rforth_ctx_t *ctx, word_t *word) {
             
         case WORD_CONSTANT:
             /* Push constant value onto stack */
-            stack_push(ctx->data_stack, word->code.value);
+            stack_push_cell(ctx->data_stack, word->code.value);
             break;
             
         case WORD_VARIABLE:
             /* Push variable address (for now, just the value) */
-            stack_push(ctx->data_stack, word->code.value);
+            stack_push_cell(ctx->data_stack, word->code.value);
             break;
             
         case WORD_IMMEDIATE:

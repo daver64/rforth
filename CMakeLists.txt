@@ -35,6 +35,7 @@ set(RFORTH_SOURCES
     src/runtime.c
     src/io.c
     src/turnkey.c
+    src/error.c
 )
 
 # Header files
@@ -46,10 +47,12 @@ set(RFORTH_HEADERS
     include/compiler.h
     include/io.h
     include/turnkey.h
+    include/config.h
 )
 
 # Main executable
 add_executable(rforth ${RFORTH_SOURCES} ${RFORTH_HEADERS})
+target_link_libraries(rforth m)  # Link math library
 
 # Runtime library for compiled programs
 set(RUNTIME_SOURCES
@@ -58,6 +61,7 @@ set(RUNTIME_SOURCES
     src/runtime.c
     src/builtins.c
     src/io.c
+    src/error.c
 )
 
 add_library(rforth_runtime STATIC ${RUNTIME_SOURCES})

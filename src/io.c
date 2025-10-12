@@ -1,4 +1,5 @@
 #include "io.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -218,7 +219,7 @@ void io_printf(const char *format, ...) {
     va_list args;
     va_start(args, format);
     
-    char buffer[1024];
+    char buffer[IO_BUFFER_SIZE];
     vsnprintf(buffer, sizeof(buffer), format, args);
     
     va_end(args);
