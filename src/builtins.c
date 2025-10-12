@@ -244,6 +244,160 @@ static void builtin_min(rforth_ctx_t *ctx) {
     }
 }
 
+/* Return stack operations */
+static void builtin_to_r(rforth_ctx_t *ctx) {
+    /* >R - Move value from data stack to return stack */
+    cell_t value;
+    if (!stack_pop(ctx->data_stack, &value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, ">R requires value on data stack");
+        return;
+    }
+    
+    if (!stack_push_cell(ctx->return_stack, value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Return stack overflow");
+        return;
+    }
+}
+
+static void builtin_from_r(rforth_ctx_t *ctx) {
+    /* R> - Move value from return stack to data stack */
+    cell_t value;
+    if (!stack_pop(ctx->return_stack, &value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "R> requires value on return stack");
+        return;
+    }
+    
+    if (!stack_push_cell(ctx->data_stack, value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Data stack overflow");
+        return;
+    }
+}
+
+static void builtin_r_fetch(rforth_ctx_t *ctx) {
+    /* R@ - Copy top of return stack to data stack */
+    cell_t value;
+    if (!stack_peek(ctx->return_stack, &value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "R@ requires value on return stack");
+        return;
+    }
+    
+    if (!stack_push_cell(ctx->data_stack, value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Data stack overflow");
+        return;
+    }
+}
+
+/* Memory operations */
+static void builtin_fetch(rforth_ctx_t *ctx) {
+    /* @ - Fetch value from address */
+    cell_t addr;
+    if (!stack_pop(ctx->data_stack, &addr)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "@ requires address on stack");
+        return;
+    }
+    
+    /* For simplicity, treat address as variable pointer */
+    variable_entry_t *var = (variable_entry_t*)(uintptr_t)addr.value.i;
+    if (!var) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "Invalid variable address");
+        return;
+    }
+    
+    /* Push variable value */
+    stack_push_cell(ctx->data_stack, var->value);
+}
+
+static void builtin_store(rforth_ctx_t *ctx) {
+    /* ! - Store value to address */
+    cell_t addr, value;
+    if (!stack_pop(ctx->data_stack, &addr) || !stack_pop(ctx->data_stack, &value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "! requires value and address on stack");
+        return;
+    }
+    
+    /* Store value in variable */
+    variable_entry_t *var = (variable_entry_t*)(uintptr_t)addr.value.i;
+    if (!var) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "Invalid variable address");
+        return;
+    }
+    
+    var->value = value;
+}
+
+static void builtin_plus_store(rforth_ctx_t *ctx) {
+    /* +! - Add value to memory location */
+    cell_t addr, value;
+    if (!stack_pop(ctx->data_stack, &addr) || !stack_pop(ctx->data_stack, &value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "+! requires value and address on stack");
+        return;
+    }
+    
+    /* Add value to variable */
+    variable_entry_t *var = (variable_entry_t*)(uintptr_t)addr.value.i;
+    if (!var) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "Invalid variable address");
+        return;
+    }
+    
+    /* Perform mixed-type addition */
+    if (var->value.type == CELL_INT && value.type == CELL_INT) {
+        var->value.value.i += value.value.i;
+    } else {
+        double a = (var->value.type == CELL_INT) ? (double)var->value.value.i : var->value.value.f;
+        double b = (value.type == CELL_INT) ? (double)value.value.i : value.value.f;
+        var->value = cell_make_float(a + b);
+    }
+}
+
+static void builtin_question(rforth_ctx_t *ctx) {
+    /* ? - Fetch and print value from address */
+    cell_t addr;
+    if (!stack_pop(ctx->data_stack, &addr)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "? requires address on stack");
+        return;
+    }
+    
+    /* Fetch and print variable value */
+    variable_entry_t *var = (variable_entry_t*)(uintptr_t)addr.value.i;
+    if (!var) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "Invalid variable address");
+        return;
+    }
+    
+    /* Print the value */
+    if (var->value.type == CELL_INT) {
+        printf("%ld ", var->value.value.i);
+    } else {
+        printf("%g ", var->value.value.f);
+    }
+}
+
+static void builtin_constant(rforth_ctx_t *ctx) {
+    /* CONSTANT - Create a named constant (stack-based for now) */
+    cell_t value, name_cell;
+    if (!stack_pop(ctx->data_stack, &name_cell) || !stack_pop(ctx->data_stack, &value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "CONSTANT requires value and name on stack");
+        return;
+    }
+    
+    /* Create constant (like variable but initialized) */
+    variable_entry_t *var = malloc(sizeof(variable_entry_t));
+    if (!var) {
+        set_error_simple(ctx, RFORTH_ERROR_MEMORY, "Failed to allocate constant");
+        return;
+    }
+    
+    snprintf(var->name, sizeof(var->name), "const_%ld", name_cell.value.i);
+    var->value = value;
+    var->next = ctx->variables;
+    ctx->variables = var;
+    
+    /* Push constant address onto stack for access */
+    uintptr_t addr = (uintptr_t)var;
+    stack_push_int(ctx->data_stack, (int64_t)addr);
+}
+
 /* Table of builtin words */
 static const builtin_word_t builtin_words[] = {
     /* Arithmetic */
@@ -297,6 +451,18 @@ static const builtin_word_t builtin_words[] = {
     
     /* Variables */
     {"variable", builtin_variable},
+    {"constant", builtin_constant},
+    
+    /* Memory operations */
+    {"@", builtin_fetch},
+    {"!", builtin_store},
+    {"+!", builtin_plus_store},
+    {"?", builtin_question},
+    
+    /* Return stack */
+    {">r", builtin_to_r},
+    {"r>", builtin_from_r},
+    {"r@", builtin_r_fetch},
     
     /* Extended arithmetic */
     {"1+", builtin_one_plus},
