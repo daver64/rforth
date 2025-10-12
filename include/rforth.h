@@ -123,6 +123,10 @@ struct rforth_ctx {
     control_flow_entry_t cf_stack[32];  /* Control flow stack */
     int cf_sp;                           /* Control flow stack pointer */
     
+    /* Skip control for true control flow */
+    bool skip_mode;                      /* True when skipping execution */
+    int skip_depth;                      /* Nesting depth during skip */
+    
     /* Variables */
     variable_entry_t *variables;         /* Variable linked list */
 };

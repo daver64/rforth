@@ -86,14 +86,15 @@ static void set_error_simple(rforth_ctx_t *ctx, rforth_error_t code, const char 
 
 /* Control flow operations */
 static void builtin_if(rforth_ctx_t *ctx) {
-    if (ctx->cf_sp >= 32) {
-        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Control flow stack overflow");
+    /* IF - Begin conditional execution ( flag -- ) */
+    
+    /* If we're already skipping, just track nesting depth */
+    if (ctx->skip_mode) {
+        ctx->skip_depth++;
         return;
     }
     
-    ctx->cf_stack[ctx->cf_sp].type = CF_IF;
-    ctx->cf_stack[ctx->cf_sp].address = 0;  /* Will be patched later */
-    
+    /* Pop condition from stack */
     cell_t condition;
     if (!stack_pop(ctx->data_stack, &condition)) {
         set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "IF requires condition on stack");
@@ -108,11 +109,33 @@ static void builtin_if(rforth_ctx_t *ctx) {
         is_true = (condition.value.f != 0.0);
     }
     
+    /* If condition is false, enter skip mode */
+    if (!is_true) {
+        ctx->skip_mode = true;
+        ctx->skip_depth = 1;  /* Start tracking nesting */
+    }
+    
+    /* Push IF onto control flow stack for ELSE/THEN matching */
+    if (ctx->cf_sp >= 32) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Control flow stack overflow");
+        return;
+    }
+    
+    ctx->cf_stack[ctx->cf_sp].type = CF_IF;
     ctx->cf_stack[ctx->cf_sp].condition_met = is_true;
     ctx->cf_sp++;
 }
 
 static void builtin_then(rforth_ctx_t *ctx) {
+    /* THEN - End conditional execution */
+    
+    /* If we're skipping and this is a nested IF, just decrement depth */
+    if (ctx->skip_mode && ctx->skip_depth > 1) {
+        ctx->skip_depth--;
+        return;
+    }
+    
+    /* Check control flow stack */
     if (ctx->cf_sp <= 0) {
         set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "THEN without matching IF");
         return;
@@ -124,16 +147,44 @@ static void builtin_then(rforth_ctx_t *ctx) {
         return;
     }
     
-    /* THEN just marks end of IF block - no action needed in immediate mode */
+    /* If we were skipping due to false IF, stop skipping */
+    if (ctx->skip_mode) {
+        ctx->skip_mode = false;
+        ctx->skip_depth = 0;
+    }
 }
 
 static void builtin_else(rforth_ctx_t *ctx) {
+    /* ELSE - Switch between IF/ELSE branches */
+    
+    /* If we're in nested skip mode, ignore this ELSE */
+    if (ctx->skip_mode && ctx->skip_depth > 1) {
+        return;
+    }
+    
+    /* Check control flow stack */
     if (ctx->cf_sp <= 0) {
         set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "ELSE without matching IF");
         return;
     }
     
-    /* Toggle condition for the IF block */
+    if (ctx->cf_stack[ctx->cf_sp - 1].type != CF_IF) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "ELSE without matching IF");
+        return;
+    }
+    
+    /* Toggle execution: if we were executing, start skipping; if skipping, start executing */
+    if (ctx->skip_mode) {
+        /* We were skipping the IF branch, now execute the ELSE branch */
+        ctx->skip_mode = false;
+        ctx->skip_depth = 0;
+    } else {
+        /* We were executing the IF branch, now skip the ELSE branch */
+        ctx->skip_mode = true;
+        ctx->skip_depth = 1;
+    }
+    
+    /* Update control flow stack to reflect the toggle */
     ctx->cf_stack[ctx->cf_sp - 1].condition_met = !ctx->cf_stack[ctx->cf_sp - 1].condition_met;
 }
 
