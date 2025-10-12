@@ -73,6 +73,25 @@ static void builtin_create(rforth_ctx_t *ctx);
 static void builtin_does(rforth_ctx_t *ctx);
 static void builtin_immediate(rforth_ctx_t *ctx);
 
+/* Critical missing ANSI words - Phase 1 */
+static void builtin_colon(rforth_ctx_t *ctx);
+static void builtin_semicolon(rforth_ctx_t *ctx);
+static void builtin_here(rforth_ctx_t *ctx);
+static void builtin_allot(rforth_ctx_t *ctx);
+static void builtin_comma(rforth_ctx_t *ctx);
+static void builtin_c_comma(rforth_ctx_t *ctx);
+static void builtin_bl(rforth_ctx_t *ctx);
+static void builtin_spaces(rforth_ctx_t *ctx);
+static void builtin_decimal(rforth_ctx_t *ctx);
+static void builtin_base(rforth_ctx_t *ctx);
+static void builtin_state(rforth_ctx_t *ctx);
+static void builtin_invert(rforth_ctx_t *ctx);
+static void builtin_xor(rforth_ctx_t *ctx);
+static void builtin_u_dot(rforth_ctx_t *ctx);
+static void builtin_u_less(rforth_ctx_t *ctx);
+static void builtin_two_over(rforth_ctx_t *ctx);
+static void builtin_unloop(rforth_ctx_t *ctx);
+
 /* Variable and memory operations */
 static void builtin_variable(rforth_ctx_t *ctx);
 static void builtin_constant(rforth_ctx_t *ctx);
@@ -1580,6 +1599,238 @@ static void builtin_question(rforth_ctx_t *ctx) {
     }
 }
 
+/* ANSI Core Words - Phase 1 Implementation */
+
+static void builtin_here(rforth_ctx_t *ctx) {
+    /* HERE - Return address of dictionary pointer ( -- addr ) */
+    /* For simplified implementation, use a fixed address */
+    stack_push_int(ctx->data_stack, (int64_t)&ctx->here_ptr);
+}
+
+static void builtin_allot(rforth_ctx_t *ctx) {
+    /* ALLOT - Allocate n bytes in dictionary ( n -- ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "ALLOT requires byte count on stack");
+        return;
+    }
+    
+    cell_t n_cell;
+    if (!stack_pop(ctx->data_stack, &n_cell) || n_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "ALLOT requires integer byte count");
+        return;
+    }
+    
+    /* For simplified implementation, just advance HERE pointer */
+    if (!ctx->here_ptr) {
+        ctx->here_ptr = malloc(65536); /* Allocate dictionary space */
+    }
+    ctx->here_ptr += n_cell.value.i;
+}
+
+static void builtin_comma(rforth_ctx_t *ctx) {
+    /* , - Compile cell into dictionary ( x -- ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, ", requires value on stack");
+        return;
+    }
+    
+    cell_t value;
+    if (!stack_pop(ctx->data_stack, &value)) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, ", requires value on stack");
+        return;
+    }
+    
+    /* For simplified implementation, store at HERE */
+    if (!ctx->here_ptr) {
+        ctx->here_ptr = malloc(65536);
+    }
+    *(cell_t*)ctx->here_ptr = value;
+    ctx->here_ptr += sizeof(cell_t);
+}
+
+static void builtin_c_comma(rforth_ctx_t *ctx) {
+    /* C, - Compile character into dictionary ( char -- ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "C, requires character on stack");
+        return;
+    }
+    
+    cell_t char_cell;
+    if (!stack_pop(ctx->data_stack, &char_cell) || char_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "C, requires integer character");
+        return;
+    }
+    
+    if (!ctx->here_ptr) {
+        ctx->here_ptr = malloc(65536);
+    }
+    *(char*)ctx->here_ptr = (char)char_cell.value.i;
+    ctx->here_ptr += 1;
+}
+
+static void builtin_bl(rforth_ctx_t *ctx) {
+    /* BL - Push ASCII space character ( -- 32 ) */
+    stack_push_int(ctx->data_stack, 32);
+}
+
+static void builtin_spaces(rforth_ctx_t *ctx) {
+    /* SPACES - Print n spaces ( n -- ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "SPACES requires count on stack");
+        return;
+    }
+    
+    cell_t n_cell;
+    if (!stack_pop(ctx->data_stack, &n_cell) || n_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "SPACES requires integer count");
+        return;
+    }
+    
+    for (int64_t i = 0; i < n_cell.value.i; i++) {
+        printf(" ");
+    }
+}
+
+static void builtin_decimal(rforth_ctx_t *ctx) {
+    /* DECIMAL - Set numeric base to 10 ( -- ) */
+    ctx->numeric_base = 10;
+}
+
+static void builtin_base(rforth_ctx_t *ctx) {
+    /* BASE - Return address of BASE variable ( -- addr ) */
+    stack_push_int(ctx->data_stack, (int64_t)&ctx->numeric_base);
+}
+
+static void builtin_state(rforth_ctx_t *ctx) {
+    /* STATE - Return address of STATE variable ( -- addr ) */
+    stack_push_int(ctx->data_stack, (int64_t)&ctx->state_var);
+}
+
+static void builtin_invert(rforth_ctx_t *ctx) {
+    /* INVERT - Bitwise NOT ( x -- ~x ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "INVERT requires value on stack");
+        return;
+    }
+    
+    cell_t value;
+    if (!stack_pop(ctx->data_stack, &value) || value.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "INVERT requires integer");
+        return;
+    }
+    
+    stack_push_int(ctx->data_stack, ~value.value.i);
+}
+
+static void builtin_xor(rforth_ctx_t *ctx) {
+    /* XOR - Bitwise exclusive OR ( x1 x2 -- x3 ) */
+    if (ctx->data_stack->size < 2) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "XOR requires two values on stack");
+        return;
+    }
+    
+    cell_t b, a;
+    if (!stack_pop(ctx->data_stack, &b) || !stack_pop(ctx->data_stack, &a)) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "XOR requires two values on stack");
+        return;
+    }
+    
+    if (a.type != CELL_INT || b.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "XOR requires integers");
+        return;
+    }
+    
+    stack_push_int(ctx->data_stack, a.value.i ^ b.value.i);
+}
+
+static void builtin_u_dot(rforth_ctx_t *ctx) {
+    /* U. - Print unsigned number ( u -- ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "U. requires value on stack");
+        return;
+    }
+    
+    cell_t value;
+    if (!stack_pop(ctx->data_stack, &value) || value.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "U. requires integer");
+        return;
+    }
+    
+    printf("%llu ", (unsigned long long)value.value.i);
+}
+
+static void builtin_u_less(rforth_ctx_t *ctx) {
+    /* U< - Unsigned less than ( u1 u2 -- flag ) */
+    if (ctx->data_stack->size < 2) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "U< requires two values on stack");
+        return;
+    }
+    
+    cell_t b, a;
+    if (!stack_pop(ctx->data_stack, &b) || !stack_pop(ctx->data_stack, &a)) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "U< requires two values on stack");
+        return;
+    }
+    
+    if (a.type != CELL_INT || b.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "U< requires integers");
+        return;
+    }
+    
+    stack_push_int(ctx->data_stack, ((uint64_t)a.value.i < (uint64_t)b.value.i) ? -1 : 0);
+}
+
+static void builtin_two_over(rforth_ctx_t *ctx) {
+    /* 2OVER - Copy second pair ( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 ) */
+    if (ctx->data_stack->size < 4) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "2OVER requires four values on stack");
+        return;
+    }
+    
+    /* Get the values without popping */
+    cell_t *stack_data = ctx->data_stack->data;
+    int top = ctx->data_stack->size - 1;
+    
+    /* Copy x1 and x2 (third and fourth from top) */
+    cell_t third = stack_data[top - 3];
+    cell_t second = stack_data[top - 2];
+    
+    /* Push copies */
+    if (third.type == CELL_INT) {
+        stack_push_int(ctx->data_stack, third.value.i);
+    } else {
+        stack_push_float(ctx->data_stack, third.value.f);
+    }
+    
+    if (second.type == CELL_INT) {
+        stack_push_int(ctx->data_stack, second.value.i);
+    } else {
+        stack_push_float(ctx->data_stack, second.value.f);
+    }
+}
+
+static void builtin_unloop(rforth_ctx_t *ctx) {
+    /* UNLOOP - Discard loop parameters ( -- ) */
+    if (ctx->do_loop_sp <= 0) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "UNLOOP without matching DO");
+        return;
+    }
+    
+    ctx->do_loop_sp--;
+}
+
+static void builtin_colon(rforth_ctx_t *ctx) {
+    /* : - Begin word definition ( C: "<spaces>name" -- colon-sys ) */
+    printf(": - Begin word definition (simplified implementation)\n");
+    ctx->state_var = -1; /* Enter compile mode */
+}
+
+static void builtin_semicolon(rforth_ctx_t *ctx) {
+    /* ; - End word definition ( C: colon-sys -- ) */
+    printf("; - End word definition (simplified implementation)\n");
+    ctx->state_var = 0; /* Return to interpret mode */
+}
+
 static void builtin_constant(rforth_ctx_t *ctx) {
     /* CONSTANT - Create a named constant (stack-based for now) */
     cell_t value, name_cell;
@@ -1725,6 +1976,25 @@ static const builtin_word_t builtin_words[] = {
     {"count", builtin_count},
     {"max", builtin_max},
     {"min", builtin_min},
+    
+    /* ANSI Core Words - Phase 1 */
+    {"here", builtin_here},
+    {"allot", builtin_allot},
+    {",", builtin_comma},
+    {"c,", builtin_c_comma},
+    {"bl", builtin_bl},
+    {"spaces", builtin_spaces},
+    {"decimal", builtin_decimal},
+    {"base", builtin_base},
+    {"state", builtin_state},
+    {"invert", builtin_invert},
+    {"xor", builtin_xor},
+    {"u.", builtin_u_dot},
+    {"u<", builtin_u_less},
+    {"2over", builtin_two_over},
+    {"unloop", builtin_unloop},
+    {":", builtin_colon},
+    {";", builtin_semicolon},
     
     /* End marker */
     {NULL, NULL}

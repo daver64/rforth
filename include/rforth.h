@@ -140,6 +140,11 @@ struct rforth_ctx {
     
     /* Variables */
     variable_entry_t *variables;         /* Variable linked list */
+    
+    /* System variables for ANSI compliance */
+    char *here_ptr;                      /* Dictionary HERE pointer */
+    int64_t numeric_base;                /* Current numeric base (default 10) */
+    int64_t state_var;                   /* STATE variable (0=interpret, -1=compile) */
 };
 
 /* Main API functions */

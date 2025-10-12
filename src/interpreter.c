@@ -39,6 +39,12 @@ rforth_ctx_t* rforth_init(void) {
     ctx->loop_sp = 0;        /* Initialize loop stack pointer */
     ctx->do_loop_sp = 0;     /* Initialize DO/LOOP stack pointer */
     ctx->variables = NULL;  /* Initialize variable list */
+    
+    /* Initialize ANSI system variables */
+    ctx->here_ptr = NULL;    /* Dictionary pointer */
+    ctx->numeric_base = 10;  /* Default decimal base */
+    ctx->state_var = 0;      /* Interpret mode */
+    
     rforth_clear_error(ctx);
     
     /* Register builtin words */
@@ -58,6 +64,9 @@ void rforth_cleanup(rforth_ctx_t *ctx) {
     if (ctx->dict) dict_destroy(ctx->dict);
     if (ctx->parser) parser_destroy(ctx->parser);
     if (ctx->compile_word_name) free(ctx->compile_word_name);
+    
+    /* Clean up HERE pointer */
+    if (ctx->here_ptr) free(ctx->here_ptr);
     
     /* Clean up variables */
     variable_entry_t *var = ctx->variables;
