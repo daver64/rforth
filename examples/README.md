@@ -1,11 +1,13 @@
 # RForth Examples
 
+🏠 **[← Back to Main README](../README.md)**
+
 This directory contains example Forth programs demonstrating various features of the RForth interpreter and compiler.
 
 ## Directory Structure
 
-- `basic/` - Simple examples demonstrating basic Forth concepts
-- `algorithms/` - More complex algorithms and mathematical operations
+- **[`basic/`](basic/README.md)** - Simple examples demonstrating basic Forth concepts
+- **[`algorithms/`](algorithms/README.md)** - More complex algorithms and mathematical operations
 
 ## Running Examples
 
@@ -41,4 +43,22 @@ RForth> : SQUARE DUP * ;
 ok
 RForth> 7 SQUARE .
 49 ok
+```
+
+## Quick Test
+
+Try running these examples to test your RForth installation:
+
+```bash
+# Basic examples
+./bin/rforth examples/basic/hello.f        # Should output: Hello World! 8 100
+./bin/rforth examples/basic/square.f       # Should output: 25 49
+
+# Algorithm examples  
+./bin/rforth examples/algorithms/fibonacci.f  # Should output: 22 12
+
+# Compilation test
+./bin/rforth -c examples/basic/hello.f -o hello_test
+./hello_test                               # Should match interpreter output
+rm hello_test                             # Clean up
 ```

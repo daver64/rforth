@@ -1,10 +1,12 @@
 # Algorithm Examples
 
+🏠 **[← Back to Main README](../../README.md)** | 📁 **[← Examples](../README.md)** | 📚 **[← Basic Examples](../basic/README.md)**
+
 More complex Forth programs demonstrating algorithms and advanced programming techniques.
 
 ## Files
 
-- **`fibonacci.f`** - Demonstrates user-defined words with hyphenated names and function composition
+- **[`fibonacci.f`](fibonacci.f)** - Demonstrates user-defined words with hyphenated names and function composition
 
 ## Concepts Demonstrated
 

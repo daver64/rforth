@@ -73,16 +73,18 @@ RForth> quit
 
 ## Examples
 
+📁 **[View All Examples →](examples/README.md)**
+
 The `examples/` directory contains sample Forth programs:
 
-- **`basic/`** - Simple examples for learning Forth basics
-  - `hello.f` - Hello World with character output
-  - `demo.f` - Basic arithmetic operations  
-  - `square.f` - User-defined word demonstration
-  - `simple.f` - Minimal arithmetic example
+- **[`basic/`](examples/basic/README.md)** - Simple examples for learning Forth basics
+  - [`hello.f`](examples/basic/hello.f) - Hello World with character output
+  - [`demo.f`](examples/basic/demo.f) - Basic arithmetic operations  
+  - [`square.f`](examples/basic/square.f) - User-defined word demonstration
+  - [`simple.f`](examples/basic/simple.f) - Minimal arithmetic example
 
-- **`algorithms/`** - More complex programs
-  - `fibonacci.f` - Demonstrates hyphenated word names and function composition
+- **[`algorithms/`](examples/algorithms/README.md)** - More complex programs
+  - [`fibonacci.f`](examples/algorithms/fibonacci.f) - Demonstrates hyphenated word names and function composition
 
 ## Forth Language Support
 

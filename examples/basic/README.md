@@ -1,13 +1,15 @@
 # Basic Forth Examples
 
+🏠 **[← Back to Main README](../../README.md)** | 📁 **[← Examples](../README.md)** | 🧮 **[Algorithms →](../algorithms/README.md)**
+
 Simple examples demonstrating fundamental Forth concepts and syntax.
 
 ## Files
 
-- **`hello.f`** - Classic "Hello World" program with character output and basic arithmetic
-- **`demo.f`** - Simple arithmetic demonstrations 
-- **`simple.f`** - Minimal arithmetic operations
-- **`square.f`** - User-defined word example showing function definitions
+- **[`hello.f`](hello.f)** - Classic "Hello World" program with character output and basic arithmetic
+- **[`demo.f`](demo.f)** - Simple arithmetic demonstrations 
+- **[`simple.f`](simple.f)** - Minimal arithmetic operations
+- **[`square.f`](square.f)** - User-defined word example showing function definitions
 
 ## Concepts Demonstrated
 
