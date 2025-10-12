@@ -215,8 +215,10 @@ void word_execute(rforth_ctx_t *ctx, word_t *word) {
             break;
             
         case WORD_VARIABLE:
-            /* Push variable address (for now, just the value) */
-            stack_push_cell(ctx->data_stack, word->code.value);
+            /* Push variable address onto stack */
+            /* The address of the value field in the word structure */
+            uintptr_t addr = (uintptr_t)&word->code.value;
+            stack_push_int(ctx->data_stack, (int64_t)addr);
             break;
             
         case WORD_IMMEDIATE:

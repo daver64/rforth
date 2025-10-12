@@ -69,7 +69,7 @@ void parser_skip_whitespace(parser_t *parser) {
     }
 }
 
-void parser_skip_comment(parser_t *parser) {
+void parser_skip_block_comment(parser_t *parser) {
     if (!parser || !parser->current) return;
     
     /* Skip until ')' or end of input */
@@ -87,6 +87,23 @@ void parser_skip_comment(parser_t *parser) {
     if (*parser->current == ')') {
         parser->current++;
         parser->col++;
+    }
+}
+
+void parser_skip_line_comment(parser_t *parser) {
+    if (!parser || !parser->current) return;
+    
+    /* Skip until end of line or end of input */
+    while (*parser->current && *parser->current != '\n') {
+        parser->col++;
+        parser->current++;
+    }
+    
+    /* Skip the newline if present */
+    if (*parser->current == '\n') {
+        parser->line++;
+        parser->col = 1;
+        parser->current++;
     }
 }
 
@@ -149,10 +166,35 @@ token_t parser_next_token(parser_t *parser) {
         return token;
     }
     
-    /* Skip whitespace */
-    parser_skip_whitespace(parser);
+    /* Skip whitespace and comments */
+    while (true) {
+        parser_skip_whitespace(parser);
+        
+        /* Check for end of input */
+        if (!*parser->current) {
+            token.type = TOKEN_EOF;
+            return token;
+        }
+        
+        /* Check for block comment */
+        if (*parser->current == '(') {
+            parser->current++;
+            parser->col++;
+            parser_skip_block_comment(parser);
+            continue; /* Skip whitespace again after comment */
+        }
+        
+        /* Check for line comment */
+        if (*parser->current == '\\' && 
+            (parser->current == parser->input || is_whitespace(*(parser->current - 1)))) {
+            parser_skip_line_comment(parser);
+            continue; /* Skip whitespace again after comment */
+        }
+        
+        break; /* No more comments or whitespace */
+    }
     
-    /* Check for end of input */
+    /* Check for end of input after comment processing */
     if (!*parser->current) {
         token.type = TOKEN_EOF;
         return token;
@@ -164,16 +206,6 @@ token_t parser_next_token(parser_t *parser) {
     
     /* Parse token based on first character */
     char c = *parser->current;
-    
-    if (c == '(') {
-        /* Comment start */
-        token.type = TOKEN_COMMENT_START;
-        strcpy(token.text, "(");
-        parser->current++;
-        parser->col++;
-        parser_skip_comment(parser);
-        return token;
-    }
     
     if (c == ':') {
         /* Colon */

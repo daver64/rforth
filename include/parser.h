@@ -72,7 +72,8 @@ token_t parser_next_token(parser_t *parser);
 bool parser_is_number(const char *text, int64_t *value);
 bool parser_is_float(const char *text, double *value);
 void parser_skip_whitespace(parser_t *parser);
-void parser_skip_comment(parser_t *parser);
+void parser_skip_block_comment(parser_t *parser);
+void parser_skip_line_comment(parser_t *parser);
 
 /* Parsing utilities */
 bool is_whitespace(char c);
