@@ -102,6 +102,16 @@ static void builtin_hold(rforth_ctx_t *ctx);
 static void builtin_sign(rforth_ctx_t *ctx);
 static void builtin_s_to_d(rforth_ctx_t *ctx);
 
+/* Phase 3: Memory operations */
+static void builtin_two_fetch(rforth_ctx_t *ctx);
+static void builtin_two_store(rforth_ctx_t *ctx);
+static void builtin_align(rforth_ctx_t *ctx);
+static void builtin_aligned(rforth_ctx_t *ctx);
+static void builtin_cell_plus(rforth_ctx_t *ctx);
+static void builtin_cells(rforth_ctx_t *ctx);
+static void builtin_fill(rforth_ctx_t *ctx);
+static void builtin_move(rforth_ctx_t *ctx);
+
 /* Variable and memory operations */
 static void builtin_variable(rforth_ctx_t *ctx);
 static void builtin_constant(rforth_ctx_t *ctx);
@@ -1992,6 +2002,199 @@ static void builtin_s_to_d(rforth_ctx_t *ctx) {
     stack_push_int(ctx->data_stack, (n < 0) ? -1 : 0);     /* High part (sign extended) */
 }
 
+/* Phase 3: Memory Operations */
+
+static void builtin_two_fetch(rforth_ctx_t *ctx) {
+    /* 2@ - Fetch two cells ( addr -- x1 x2 ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "2@ requires address on stack");
+        return;
+    }
+    
+    cell_t addr_cell;
+    if (!stack_pop(ctx->data_stack, &addr_cell) || addr_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "2@ requires integer address");
+        return;
+    }
+    
+    /* Safety check for valid address */
+    if (addr_cell.value.i < 1000) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_INVALID_ADDRESS, "2@ invalid address");
+        return;
+    }
+    
+    cell_t *addr = (cell_t*)addr_cell.value.i;
+    
+    /* Push the two cells onto stack */
+    if (addr[0].type == CELL_INT) {
+        stack_push_int(ctx->data_stack, addr[0].value.i);
+    } else {
+        stack_push_float(ctx->data_stack, addr[0].value.f);
+    }
+    
+    if (addr[1].type == CELL_INT) {
+        stack_push_int(ctx->data_stack, addr[1].value.i);
+    } else {
+        stack_push_float(ctx->data_stack, addr[1].value.f);
+    }
+}
+
+static void builtin_two_store(rforth_ctx_t *ctx) {
+    /* 2! - Store two cells ( x1 x2 addr -- ) */
+    if (ctx->data_stack->size < 3) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "2! requires two values and address on stack");
+        return;
+    }
+    
+    cell_t addr_cell, x2, x1;
+    if (!stack_pop(ctx->data_stack, &addr_cell) || !stack_pop(ctx->data_stack, &x2) || !stack_pop(ctx->data_stack, &x1)) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "2! requires two values and address on stack");
+        return;
+    }
+    
+    if (addr_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "2! requires integer address");
+        return;
+    }
+    
+    /* Safety check for valid address */
+    if (addr_cell.value.i < 1000) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_INVALID_ADDRESS, "2! invalid address");
+        return;
+    }
+    
+    cell_t *addr = (cell_t*)addr_cell.value.i;
+    addr[0] = x1;
+    addr[1] = x2;
+}
+
+static void builtin_align(rforth_ctx_t *ctx) {
+    /* ALIGN - Align dictionary pointer ( -- ) */
+    if (!ctx->here_ptr) {
+        ctx->here_ptr = malloc(65536);
+    }
+    
+    /* Align to cell boundary (8 bytes on 64-bit systems) */
+    uintptr_t addr = (uintptr_t)ctx->here_ptr;
+    size_t cell_size = sizeof(cell_t);
+    size_t remainder = addr % cell_size;
+    if (remainder != 0) {
+        ctx->here_ptr += (cell_size - remainder);
+    }
+}
+
+static void builtin_aligned(rforth_ctx_t *ctx) {
+    /* ALIGNED - Round address up to cell boundary ( addr1 -- addr2 ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "ALIGNED requires address on stack");
+        return;
+    }
+    
+    cell_t addr_cell;
+    if (!stack_pop(ctx->data_stack, &addr_cell) || addr_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "ALIGNED requires integer address");
+        return;
+    }
+    
+    /* Align to cell boundary */
+    uintptr_t addr = (uintptr_t)addr_cell.value.i;
+    size_t cell_size = sizeof(cell_t);
+    size_t remainder = addr % cell_size;
+    if (remainder != 0) {
+        addr += (cell_size - remainder);
+    }
+    
+    stack_push_int(ctx->data_stack, (int64_t)addr);
+}
+
+static void builtin_cell_plus(rforth_ctx_t *ctx) {
+    /* CELL+ - Add cell size to address ( addr1 -- addr2 ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "CELL+ requires address on stack");
+        return;
+    }
+    
+    cell_t addr_cell;
+    if (!stack_pop(ctx->data_stack, &addr_cell) || addr_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "CELL+ requires integer address");
+        return;
+    }
+    
+    stack_push_int(ctx->data_stack, addr_cell.value.i + sizeof(cell_t));
+}
+
+static void builtin_cells(rforth_ctx_t *ctx) {
+    /* CELLS - Convert cell count to byte count ( n1 -- n2 ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "CELLS requires count on stack");
+        return;
+    }
+    
+    cell_t count_cell;
+    if (!stack_pop(ctx->data_stack, &count_cell) || count_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "CELLS requires integer count");
+        return;
+    }
+    
+    stack_push_int(ctx->data_stack, count_cell.value.i * sizeof(cell_t));
+}
+
+static void builtin_fill(rforth_ctx_t *ctx) {
+    /* FILL - Fill memory with character ( c-addr u char -- ) */
+    if (ctx->data_stack->size < 3) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "FILL requires address, count and character");
+        return;
+    }
+    
+    cell_t char_cell, count_cell, addr_cell;
+    if (!stack_pop(ctx->data_stack, &char_cell) || !stack_pop(ctx->data_stack, &count_cell) || !stack_pop(ctx->data_stack, &addr_cell)) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "FILL requires address, count and character");
+        return;
+    }
+    
+    if (addr_cell.type != CELL_INT || count_cell.type != CELL_INT || char_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "FILL requires integer operands");
+        return;
+    }
+    
+    /* Safety check for valid address and count */
+    if (addr_cell.value.i < 1000 || count_cell.value.i < 0) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_INVALID_ADDRESS, "FILL invalid address or count");
+        return;
+    }
+    
+    /* Fill memory */
+    memset((void*)addr_cell.value.i, (int)char_cell.value.i, (size_t)count_cell.value.i);
+}
+
+static void builtin_move(rforth_ctx_t *ctx) {
+    /* MOVE - Copy memory ( addr1 addr2 u -- ) */
+    if (ctx->data_stack->size < 3) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "MOVE requires source, dest and count");
+        return;
+    }
+    
+    cell_t count_cell, dest_cell, src_cell;
+    if (!stack_pop(ctx->data_stack, &count_cell) || !stack_pop(ctx->data_stack, &dest_cell) || !stack_pop(ctx->data_stack, &src_cell)) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "MOVE requires source, dest and count");
+        return;
+    }
+    
+    if (src_cell.type != CELL_INT || dest_cell.type != CELL_INT || count_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "MOVE requires integer operands");
+        return;
+    }
+    
+    /* Safety check for valid addresses and count */
+    if (src_cell.value.i < 1000 || dest_cell.value.i < 1000 || count_cell.value.i < 0) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_INVALID_ADDRESS, "MOVE invalid addresses or count");
+        return;
+    }
+    
+    /* Move memory (handles overlapping regions correctly) */
+    memmove((void*)dest_cell.value.i, (void*)src_cell.value.i, (size_t)count_cell.value.i);
+}
+
 static void builtin_constant(rforth_ctx_t *ctx) {
     /* CONSTANT - Create a named constant (stack-based for now) */
     cell_t value, name_cell;
@@ -2165,6 +2368,16 @@ static const builtin_word_t builtin_words[] = {
     {"hold", builtin_hold},
     {"sign", builtin_sign},
     {"s>d", builtin_s_to_d},
+    
+    /* ANSI Core Words - Phase 3: Memory operations */
+    {"2@", builtin_two_fetch},
+    {"2!", builtin_two_store},
+    {"align", builtin_align},
+    {"aligned", builtin_aligned},
+    {"cell+", builtin_cell_plus},
+    {"cells", builtin_cells},
+    {"fill", builtin_fill},
+    {"move", builtin_move},
     
     /* End marker */
     {NULL, NULL}
