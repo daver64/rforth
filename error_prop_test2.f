@@ -1,0 +1,5 @@
+: GOOD 42 . ;
+: BAD GOOD NONEXISTENT ;
+
+GOOD
+BAD

@@ -175,7 +175,33 @@ void word_execute(rforth_ctx_t *ctx, word_t *word) {
         case WORD_USER:
             if (word->code.definition) {
                 /* Execute user-defined word by interpreting its definition */
-                rforth_interpret_string(ctx, word->code.definition);
+                /* Save current parser state */
+                parser_t *saved_parser = ctx->parser;
+                parse_state_t saved_state = ctx->state;
+                
+                /* Create temporary parser for user word execution */
+                ctx->parser = parser_create();
+                if (!ctx->parser) {
+                    ctx->last_error = RFORTH_ERROR_MEMORY;
+                    ctx->parser = saved_parser;
+                    return;
+                }
+                
+                ctx->state = PARSE_INTERPRET;
+                int result = rforth_interpret_string(ctx, word->code.definition);
+                
+                /* Restore parser state */
+                parser_destroy(ctx->parser);
+                ctx->parser = saved_parser;
+                ctx->state = saved_state;
+                
+                if (result != 0) {
+                    /* Error occurred during user word execution */
+                    if (ctx->last_error == RFORTH_OK) {
+                        /* Set a generic error if none was set */
+                        ctx->last_error = RFORTH_ERROR_PARSE_ERROR;
+                    }
+                }
             }
             break;
             
