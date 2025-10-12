@@ -35,11 +35,214 @@ static void builtin_float_to_int(rforth_ctx_t *ctx);
 static void builtin_sqrt(rforth_ctx_t *ctx);
 static void builtin_abs(rforth_ctx_t *ctx);
 
+/* Control flow words */
+static void builtin_if(rforth_ctx_t *ctx);
+static void builtin_then(rforth_ctx_t *ctx);
+static void builtin_else(rforth_ctx_t *ctx);
+static void builtin_begin(rforth_ctx_t *ctx);
+static void builtin_until(rforth_ctx_t *ctx);
+static void builtin_while(rforth_ctx_t *ctx);
+static void builtin_repeat(rforth_ctx_t *ctx);
+
+/* Variable and memory operations */
+static void builtin_variable(rforth_ctx_t *ctx);
+static void builtin_constant(rforth_ctx_t *ctx);
+static void builtin_fetch(rforth_ctx_t *ctx);
+static void builtin_store(rforth_ctx_t *ctx);
+static void builtin_plus_store(rforth_ctx_t *ctx);
+static void builtin_question(rforth_ctx_t *ctx);
+
+/* Return stack operations */
+static void builtin_to_r(rforth_ctx_t *ctx);
+static void builtin_from_r(rforth_ctx_t *ctx);
+static void builtin_r_fetch(rforth_ctx_t *ctx);
+
+/* Advanced stack operations */
+static void builtin_pick(rforth_ctx_t *ctx);
+static void builtin_roll(rforth_ctx_t *ctx);
+static void builtin_two_dup(rforth_ctx_t *ctx);
+static void builtin_two_drop(rforth_ctx_t *ctx);
+static void builtin_depth(rforth_ctx_t *ctx);
+
+/* Extended arithmetic */
+static void builtin_max(rforth_ctx_t *ctx);
+static void builtin_min(rforth_ctx_t *ctx);
+static void builtin_one_plus(rforth_ctx_t *ctx);
+static void builtin_one_minus(rforth_ctx_t *ctx);
+static void builtin_two_star(rforth_ctx_t *ctx);
+static void builtin_two_slash(rforth_ctx_t *ctx);
+
 /* Structure to hold builtin word definitions */
 typedef struct {
     const char *name;
     void (*func)(rforth_ctx_t *ctx);
 } builtin_word_t;
+
+/* Simplified error setting for builtins */
+static void set_error_simple(rforth_ctx_t *ctx, rforth_error_t code, const char *message) {
+    rforth_set_error(ctx, code, message, "builtin", __FILE__, __LINE__, 0);
+}
+
+/* Control flow operations */
+static void builtin_if(rforth_ctx_t *ctx) {
+    if (ctx->cf_sp >= 32) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Control flow stack overflow");
+        return;
+    }
+    
+    ctx->cf_stack[ctx->cf_sp].type = CF_IF;
+    ctx->cf_stack[ctx->cf_sp].address = 0;  /* Will be patched later */
+    
+    cell_t condition;
+    if (!stack_pop(ctx->data_stack, &condition)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "IF requires condition on stack");
+        return;
+    }
+    
+    /* Evaluate condition (non-zero is true) */
+    bool is_true = false;
+    if (condition.type == CELL_INT) {
+        is_true = (condition.value.i != 0);
+    } else {
+        is_true = (condition.value.f != 0.0);
+    }
+    
+    ctx->cf_stack[ctx->cf_sp].condition_met = is_true;
+    ctx->cf_sp++;
+}
+
+static void builtin_then(rforth_ctx_t *ctx) {
+    if (ctx->cf_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "THEN without matching IF");
+        return;
+    }
+    
+    ctx->cf_sp--;
+    if (ctx->cf_stack[ctx->cf_sp].type != CF_IF) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "THEN without matching IF");
+        return;
+    }
+    
+    /* THEN just marks end of IF block - no action needed in immediate mode */
+}
+
+static void builtin_else(rforth_ctx_t *ctx) {
+    if (ctx->cf_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "ELSE without matching IF");
+        return;
+    }
+    
+    /* Toggle condition for the IF block */
+    ctx->cf_stack[ctx->cf_sp - 1].condition_met = !ctx->cf_stack[ctx->cf_sp - 1].condition_met;
+}
+
+/* Simple variable implementation using name-value pairs */
+static variable_entry_t* find_variable(rforth_ctx_t *ctx, const char *name) {
+    variable_entry_t *var = ctx->variables;
+    while (var) {
+        if (strcmp(var->name, name) == 0) {
+            return var;
+        }
+        var = var->next;
+    }
+    return NULL;
+}
+
+static void builtin_variable(rforth_ctx_t *ctx) {
+    /* Simple implementation: just create the variable, initialized to 0 */
+    /* In practice this would need to get name from the input stream */
+    /* For now, we'll implement this as a stack-based operation */
+    /* Top of stack: name as number (simple case) */
+    
+    cell_t name_cell;
+    if (!stack_pop(ctx->data_stack, &name_cell)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "VARIABLE requires name on stack");
+        return;
+    }
+    
+    /* Create variable with numeric name for now */
+    variable_entry_t *var = malloc(sizeof(variable_entry_t));
+    if (!var) {
+        set_error_simple(ctx, RFORTH_ERROR_MEMORY, "Failed to allocate variable");
+        return;
+    }
+    
+    snprintf(var->name, sizeof(var->name), "var_%ld", name_cell.value.i);
+    var->value = cell_make_int(0);  /* Initialize to 0 */
+    var->next = ctx->variables;
+    ctx->variables = var;
+    
+    /* Push variable address onto stack */
+    uintptr_t addr = (uintptr_t)var;
+    stack_push_int(ctx->data_stack, (int64_t)addr);
+}
+
+/* Basic arithmetic extensions */
+static void builtin_one_plus(rforth_ctx_t *ctx) {
+    cell_t a;
+    if (!stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "1+ requires value on stack");
+        return;
+    }
+    
+    if (a.type == CELL_INT) {
+        stack_push_int(ctx->data_stack, a.value.i + 1);
+    } else {
+        stack_push_float(ctx->data_stack, a.value.f + 1.0);
+    }
+}
+
+static void builtin_one_minus(rforth_ctx_t *ctx) {
+    cell_t a;
+    if (!stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "1- requires value on stack");
+        return;
+    }
+    
+    if (a.type == CELL_INT) {
+        stack_push_int(ctx->data_stack, a.value.i - 1);
+    } else {
+        stack_push_float(ctx->data_stack, a.value.f - 1.0);
+    }
+}
+
+static void builtin_max(rforth_ctx_t *ctx) {
+    cell_t a, b;
+    if (!stack_pop(ctx->data_stack, &a) || !stack_pop(ctx->data_stack, &b)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "MAX requires two values on stack");
+        return;
+    }
+    
+    /* Compare and push maximum */
+    if (b.type == CELL_INT && a.type == CELL_INT) {
+        int64_t result = (b.value.i > a.value.i) ? b.value.i : a.value.i;
+        stack_push_int(ctx->data_stack, result);
+    } else {
+        double val_b = (b.type == CELL_INT) ? (double)b.value.i : b.value.f;
+        double val_a = (a.type == CELL_INT) ? (double)a.value.i : a.value.f;
+        double result = (val_b > val_a) ? val_b : val_a;
+        stack_push_float(ctx->data_stack, result);
+    }
+}
+
+static void builtin_min(rforth_ctx_t *ctx) {
+    cell_t a, b;
+    if (!stack_pop(ctx->data_stack, &a) || !stack_pop(ctx->data_stack, &b)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "MIN requires two values on stack");
+        return;
+    }
+    
+    /* Compare and push minimum */
+    if (b.type == CELL_INT && a.type == CELL_INT) {
+        int64_t result = (b.value.i < a.value.i) ? b.value.i : a.value.i;
+        stack_push_int(ctx->data_stack, result);
+    } else {
+        double val_b = (b.type == CELL_INT) ? (double)b.value.i : b.value.f;
+        double val_a = (a.type == CELL_INT) ? (double)a.value.i : a.value.f;
+        double result = (val_b < val_a) ? val_b : val_a;
+        stack_push_float(ctx->data_stack, result);
+    }
+}
 
 /* Table of builtin words */
 static const builtin_word_t builtin_words[] = {
@@ -86,6 +289,20 @@ static const builtin_word_t builtin_words[] = {
     {"words", builtin_words_cmd},
     {"bye", builtin_bye},
     {"turnkey", builtin_turnkey},
+    
+    /* Control flow (basic) */
+    {"if", builtin_if},
+    {"then", builtin_then},
+    {"else", builtin_else},
+    
+    /* Variables */
+    {"variable", builtin_variable},
+    
+    /* Extended arithmetic */
+    {"1+", builtin_one_plus},
+    {"1-", builtin_one_minus},
+    {"max", builtin_max},
+    {"min", builtin_min},
     
     /* End marker */
     {NULL, NULL}

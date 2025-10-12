@@ -36,6 +36,7 @@ bool stack_pop(rforth_stack_t *stack, cell_t *value);
 bool stack_pop_int(rforth_stack_t *stack, int64_t *value);
 bool stack_pop_float(rforth_stack_t *stack, double *value);
 bool stack_peek(rforth_stack_t *stack, cell_t *value);
+bool stack_pick(rforth_stack_t *stack, int index, cell_t *value);
 bool stack_is_empty(rforth_stack_t *stack);
 bool stack_is_full(rforth_stack_t *stack);
 int stack_depth(rforth_stack_t *stack);

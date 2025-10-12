@@ -33,6 +33,8 @@ rforth_ctx_t* rforth_init(void) {
     ctx->state = PARSE_INTERPRET;
     ctx->compile_word_name = NULL;
     ctx->running = true;
+    ctx->cf_sp = 0;  /* Initialize control flow stack pointer */
+    ctx->variables = NULL;  /* Initialize variable list */
     rforth_clear_error(ctx);
     
     /* Register builtin words */
@@ -53,7 +55,30 @@ void rforth_cleanup(rforth_ctx_t *ctx) {
     if (ctx->parser) parser_destroy(ctx->parser);
     if (ctx->compile_word_name) free(ctx->compile_word_name);
     
+    /* Clean up variables */
+    variable_entry_t *var = ctx->variables;
+    while (var) {
+        variable_entry_t *next = var->next;
+        free(var);
+        var = next;
+    }
+    
     free(ctx);
+}
+
+/* Helper function to find variable and push its address */
+static bool handle_variable_word(rforth_ctx_t *ctx, const char *name) {
+    variable_entry_t *var = ctx->variables;
+    while (var) {
+        if (strcmp(var->name, name) == 0) {
+            /* Push variable address onto stack */
+            uintptr_t addr = (uintptr_t)var;
+            stack_push_int(ctx->data_stack, (int64_t)addr);
+            return true;
+        }
+        var = var->next;
+    }
+    return false;
 }
 
 static rforth_error_t interpret_token(rforth_ctx_t *ctx, token_t *token) {
@@ -84,6 +109,8 @@ static rforth_error_t interpret_token(rforth_ctx_t *ctx, token_t *token) {
                 if (ctx->last_error.code != RFORTH_OK) {
                     return ctx->last_error.code;
                 }
+            } else if (handle_variable_word(ctx, token->text)) {
+                /* Variable found and address pushed */
             } else {
                 RFORTH_SET_PARSE_ERROR(ctx, RFORTH_ERROR_WORD_NOT_FOUND, "Word not found", token->line, token->col);
                 return RFORTH_ERROR_WORD_NOT_FOUND;

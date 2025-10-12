@@ -123,6 +123,24 @@ bool parser_is_float(const char *text, double *value) {
     return false;
 }
 
+static token_type_t get_keyword_token(const char *text) {
+    if (!text) return TOKEN_WORD;
+    
+    /* Control flow keywords */
+    if (strcmp(text, "if") == 0) return TOKEN_IF;
+    if (strcmp(text, "then") == 0) return TOKEN_THEN;
+    if (strcmp(text, "else") == 0) return TOKEN_ELSE;
+    if (strcmp(text, "begin") == 0) return TOKEN_BEGIN;
+    if (strcmp(text, "until") == 0) return TOKEN_UNTIL;
+    if (strcmp(text, "while") == 0) return TOKEN_WHILE;
+    if (strcmp(text, "repeat") == 0) return TOKEN_REPEAT;
+    if (strcmp(text, "do") == 0) return TOKEN_DO;
+    if (strcmp(text, "loop") == 0) return TOKEN_LOOP;
+    if (strcmp(text, "leave") == 0) return TOKEN_LEAVE;
+    
+    return TOKEN_WORD;  /* Not a keyword */
+}
+
 token_t parser_next_token(parser_t *parser) {
     token_t token = {0};
     

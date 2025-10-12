@@ -33,7 +33,9 @@ typedef enum {
     RFORTH_ERROR_DICT_FULL,
     
     /* Parser errors */
+    RFORTH_ERROR_PARSE,
     RFORTH_ERROR_PARSE_ERROR,
+    RFORTH_ERROR_CONTROL_FLOW,
     RFORTH_ERROR_SYNTAX_ERROR,
     RFORTH_ERROR_UNEXPECTED_EOF,
     RFORTH_ERROR_INVALID_NUMBER,
@@ -62,6 +64,9 @@ typedef enum {
     
     /* Runtime errors */
     RFORTH_ERROR_DIVISION_BY_ZERO,
+    RFORTH_ERROR_INVALID_ADDRESS,
+    RFORTH_ERROR_DUPLICATE_WORD,
+    RFORTH_ERROR_TYPE_MISMATCH,
     RFORTH_ERROR_INVALID_OPERATION,
     RFORTH_ERROR_EXECUTION_ERROR,
     
@@ -82,6 +87,27 @@ typedef struct {
 /* Forward declarations */
 typedef struct rforth_ctx rforth_ctx_t;
 
+/* Control flow types */
+typedef enum {
+    CF_IF,
+    CF_BEGIN,
+    CF_DO
+} control_flow_type_t;
+
+/* Control flow stack entry */
+typedef struct {
+    control_flow_type_t type;
+    int64_t address;        /* Address or flag value */
+    bool condition_met;     /* For conditional constructs */
+} control_flow_entry_t;
+
+/* Variable entry */
+typedef struct variable_entry {
+    char name[MAX_WORD_LENGTH];
+    cell_t value;
+    struct variable_entry *next;
+} variable_entry_t;
+
 /* Main context structure */
 struct rforth_ctx {
     rforth_stack_t *data_stack;        /* Data stack */
@@ -92,6 +118,13 @@ struct rforth_ctx {
     char *compile_word_name;   /* Word being compiled */
     bool running;              /* Interpreter running flag */
     rforth_error_context_t last_error; /* Last error with context */
+    
+    /* Control flow stack */
+    control_flow_entry_t cf_stack[32];  /* Control flow stack */
+    int cf_sp;                           /* Control flow stack pointer */
+    
+    /* Variables */
+    variable_entry_t *variables;         /* Variable linked list */
 };
 
 /* Main API functions */

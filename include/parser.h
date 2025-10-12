@@ -25,6 +25,19 @@ typedef enum {
     TOKEN_SEMICOLON,    /* ; (end definition) */
     TOKEN_COMMENT_START, /* ( */
     TOKEN_COMMENT_END,   /* ) */
+    
+    /* Control flow tokens */
+    TOKEN_IF,           /* if */
+    TOKEN_THEN,         /* then */
+    TOKEN_ELSE,         /* else */
+    TOKEN_BEGIN,        /* begin */
+    TOKEN_UNTIL,        /* until */
+    TOKEN_WHILE,        /* while */
+    TOKEN_REPEAT,       /* repeat */
+    TOKEN_DO,           /* do */
+    TOKEN_LOOP,         /* loop */
+    TOKEN_LEAVE,        /* leave */
+    
     TOKEN_EOF,          /* End of input */
     TOKEN_ERROR         /* Parse error */
 } token_type_t;

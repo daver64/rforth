@@ -132,6 +132,22 @@ bool stack_peek(rforth_stack_t *stack, cell_t *value) {
     return true;
 }
 
+bool stack_pick(rforth_stack_t *stack, int index, cell_t *value) {
+    if (!stack || index < 0) {
+        return false;
+    }
+    
+    int pos = stack->sp - index;
+    if (pos < 0) {
+        return false;  /* Index beyond stack depth */
+    }
+    
+    if (value) {
+        *value = stack->data[pos];
+    }
+    return true;
+}
+
 bool stack_is_empty(rforth_stack_t *stack) {
     return !stack || stack->sp < 0;
 }
