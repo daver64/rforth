@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <ctype.h>
+#include <string.h>
 
 /* Forward declarations */
 static void builtin_add(rforth_ctx_t *ctx);
@@ -91,6 +92,15 @@ static void builtin_u_dot(rforth_ctx_t *ctx);
 static void builtin_u_less(rforth_ctx_t *ctx);
 static void builtin_two_over(rforth_ctx_t *ctx);
 static void builtin_unloop(rforth_ctx_t *ctx);
+
+/* Phase 2: Numeric formatting words */
+static void builtin_less_hash(rforth_ctx_t *ctx);
+static void builtin_hash(rforth_ctx_t *ctx);
+static void builtin_hash_s(rforth_ctx_t *ctx);
+static void builtin_hash_greater(rforth_ctx_t *ctx);
+static void builtin_hold(rforth_ctx_t *ctx);
+static void builtin_sign(rforth_ctx_t *ctx);
+static void builtin_s_to_d(rforth_ctx_t *ctx);
 
 /* Variable and memory operations */
 static void builtin_variable(rforth_ctx_t *ctx);
@@ -1831,6 +1841,157 @@ static void builtin_semicolon(rforth_ctx_t *ctx) {
     ctx->state_var = 0; /* Return to interpret mode */
 }
 
+/* Phase 2: Numeric Formatting Words */
+
+static void builtin_less_hash(rforth_ctx_t *ctx) {
+    /* <# - Initialize numeric output conversion ( -- ) */
+    ctx->format_pos = 0;
+    ctx->format_buffer[0] = '\0';
+}
+
+static void builtin_hash(rforth_ctx_t *ctx) {
+    /* # - Add next digit to numeric output ( ud1 -- ud2 ) */
+    if (ctx->data_stack->size < 2) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "# requires double number on stack");
+        return;
+    }
+    
+    cell_t high, low;
+    if (!stack_pop(ctx->data_stack, &high) || !stack_pop(ctx->data_stack, &low)) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "# requires double number on stack");
+        return;
+    }
+    
+    if (high.type != CELL_INT || low.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "# requires integer operands");
+        return;
+    }
+    
+    /* Combine into 64-bit unsigned number */
+    uint64_t ud = ((uint64_t)high.value.i << 32) | (uint32_t)low.value.i;
+    
+    /* Extract digit */
+    uint64_t base = (uint64_t)ctx->numeric_base;
+    char digit = (char)(ud % base);
+    ud /= base;
+    
+    /* Convert to character */
+    char ch = (digit < 10) ? ('0' + digit) : ('A' + digit - 10);
+    
+    /* Prepend to buffer */
+    if (ctx->format_pos < sizeof(ctx->format_buffer) - 1) {
+        memmove(ctx->format_buffer + 1, ctx->format_buffer, ctx->format_pos + 1);
+        ctx->format_buffer[0] = ch;
+        ctx->format_pos++;
+    }
+    
+    /* Push result back */
+    stack_push_int(ctx->data_stack, (int64_t)(ud >> 32));
+    stack_push_int(ctx->data_stack, (int64_t)(ud & 0xFFFFFFFF));
+}
+
+static void builtin_hash_s(rforth_ctx_t *ctx) {
+    /* #S - Convert all remaining digits ( ud1 -- 0 0 ) */
+    if (ctx->data_stack->size < 2) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "#S requires double number on stack");
+        return;
+    }
+    
+    do {
+        builtin_hash(ctx);
+        if (ctx->last_error.code != RFORTH_OK) return;
+        
+        /* Check if result is zero */
+        if (ctx->data_stack->size >= 2) {
+            cell_t *stack_data = ctx->data_stack->data;
+            int top = ctx->data_stack->size - 1;
+            if (stack_data[top].value.i == 0 && stack_data[top-1].value.i == 0) {
+                break;
+            }
+        }
+    } while (true);
+}
+
+static void builtin_hash_greater(rforth_ctx_t *ctx) {
+    /* #> - Complete numeric conversion ( ud -- c-addr u ) */
+    if (ctx->data_stack->size < 2) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "#> requires double number on stack");
+        return;
+    }
+    
+    /* Remove the double number from stack */
+    cell_t high, low;
+    stack_pop(ctx->data_stack, &high);
+    stack_pop(ctx->data_stack, &low);
+    
+    /* Push address and length of formatted string */
+    stack_push_int(ctx->data_stack, (int64_t)ctx->format_buffer);
+    stack_push_int(ctx->data_stack, ctx->format_pos);
+}
+
+static void builtin_hold(rforth_ctx_t *ctx) {
+    /* HOLD - Insert character into numeric output ( char -- ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "HOLD requires character on stack");
+        return;
+    }
+    
+    cell_t char_cell;
+    if (!stack_pop(ctx->data_stack, &char_cell) || char_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "HOLD requires integer character");
+        return;
+    }
+    
+    /* Prepend character to format buffer */
+    if (ctx->format_pos < sizeof(ctx->format_buffer) - 1) {
+        memmove(ctx->format_buffer + 1, ctx->format_buffer, ctx->format_pos + 1);
+        ctx->format_buffer[0] = (char)char_cell.value.i;
+        ctx->format_pos++;
+    }
+}
+
+static void builtin_sign(rforth_ctx_t *ctx) {
+    /* SIGN - Add minus sign if n is negative ( n -- ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "SIGN requires value on stack");
+        return;
+    }
+    
+    cell_t n_cell;
+    if (!stack_pop(ctx->data_stack, &n_cell) || n_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "SIGN requires integer");
+        return;
+    }
+    
+    /* Add minus sign if negative */
+    if (n_cell.value.i < 0) {
+        if (ctx->format_pos < sizeof(ctx->format_buffer) - 1) {
+            memmove(ctx->format_buffer + 1, ctx->format_buffer, ctx->format_pos + 1);
+            ctx->format_buffer[0] = '-';
+            ctx->format_pos++;
+        }
+    }
+}
+
+static void builtin_s_to_d(rforth_ctx_t *ctx) {
+    /* S>D - Convert single to double number ( n -- d ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "S>D requires value on stack");
+        return;
+    }
+    
+    cell_t n_cell;
+    if (!stack_pop(ctx->data_stack, &n_cell) || n_cell.type != CELL_INT) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_TYPE_MISMATCH, "S>D requires integer");
+        return;
+    }
+    
+    /* Sign extend to double */
+    int64_t n = n_cell.value.i;
+    stack_push_int(ctx->data_stack, n);                    /* Low part */
+    stack_push_int(ctx->data_stack, (n < 0) ? -1 : 0);     /* High part (sign extended) */
+}
+
 static void builtin_constant(rforth_ctx_t *ctx) {
     /* CONSTANT - Create a named constant (stack-based for now) */
     cell_t value, name_cell;
@@ -1995,6 +2156,15 @@ static const builtin_word_t builtin_words[] = {
     {"unloop", builtin_unloop},
     {":", builtin_colon},
     {";", builtin_semicolon},
+    
+    /* ANSI Core Words - Phase 2: Numeric formatting */
+    {"<#", builtin_less_hash},
+    {"#", builtin_hash},
+    {"#s", builtin_hash_s},
+    {"#>", builtin_hash_greater},
+    {"hold", builtin_hold},
+    {"sign", builtin_sign},
+    {"s>d", builtin_s_to_d},
     
     /* End marker */
     {NULL, NULL}

@@ -45,6 +45,10 @@ rforth_ctx_t* rforth_init(void) {
     ctx->numeric_base = 10;  /* Default decimal base */
     ctx->state_var = 0;      /* Interpret mode */
     
+    /* Initialize numeric formatting */
+    ctx->format_pos = 0;
+    ctx->format_buffer[0] = '\0';
+    
     rforth_clear_error(ctx);
     
     /* Register builtin words */

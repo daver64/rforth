@@ -145,6 +145,10 @@ struct rforth_ctx {
     char *here_ptr;                      /* Dictionary HERE pointer */
     int64_t numeric_base;                /* Current numeric base (default 10) */
     int64_t state_var;                   /* STATE variable (0=interpret, -1=compile) */
+    
+    /* Numeric formatting buffer for ANSI words */
+    char format_buffer[256];             /* Buffer for numeric formatting */
+    int format_pos;                      /* Current position in format buffer */
 };
 
 /* Main API functions */
