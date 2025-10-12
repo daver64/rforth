@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../lib/librforth_runtime.a CMakeFiles/rforth_runtime.dir/src/stack.c.o CMakeFiles/rforth_runtime.dir/src/dict.c.o CMakeFiles/rforth_runtime.dir/src/runtime.c.o CMakeFiles/rforth_runtime.dir/src/builtins.c.o
+/usr/bin/ranlib ../lib/librforth_runtime.a

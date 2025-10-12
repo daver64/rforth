@@ -1,0 +1,11 @@
+/home/dave/source/rforth/build/CMakeFiles/rforth.dir
+/home/dave/source/rforth/build/CMakeFiles/rforth_runtime.dir
+/home/dave/source/rforth/build/CMakeFiles/clean-all.dir
+/home/dave/source/rforth/build/CMakeFiles/repl.dir
+/home/dave/source/rforth/build/CMakeFiles/test.dir
+/home/dave/source/rforth/build/CMakeFiles/edit_cache.dir
+/home/dave/source/rforth/build/CMakeFiles/rebuild_cache.dir
+/home/dave/source/rforth/build/CMakeFiles/list_install_components.dir
+/home/dave/source/rforth/build/CMakeFiles/install.dir
+/home/dave/source/rforth/build/CMakeFiles/install/local.dir
+/home/dave/source/rforth/build/CMakeFiles/install/strip.dir
