@@ -36,6 +36,7 @@ rforth_ctx_t* rforth_init(void) {
     ctx->cf_sp = 0;  /* Initialize control flow stack pointer */
     ctx->skip_mode = false;  /* Initialize skip mode */
     ctx->skip_depth = 0;     /* Initialize skip depth */
+    ctx->loop_sp = 0;        /* Initialize loop stack pointer */
     ctx->variables = NULL;  /* Initialize variable list */
     rforth_clear_error(ctx);
     
@@ -88,12 +89,16 @@ static rforth_error_t interpret_token(rforth_ctx_t *ctx, token_t *token) {
     
     /* Handle skip mode for true control flow */
     if (ctx->skip_mode) {
-        /* Only allow control flow words (IF, ELSE, THEN) during skip mode */
+        /* Only allow control flow words during skip mode */
         if (token->type == TOKEN_WORD) {
             /* Allow control flow words to execute even during skip */
             if (strcmp(token->text, "if") == 0 || 
                 strcmp(token->text, "else") == 0 || 
-                strcmp(token->text, "then") == 0) {
+                strcmp(token->text, "then") == 0 ||
+                strcmp(token->text, "begin") == 0 ||
+                strcmp(token->text, "until") == 0 ||
+                strcmp(token->text, "while") == 0 ||
+                strcmp(token->text, "repeat") == 0) {
                 /* These words will handle skip mode logic */
             } else {
                 /* Skip all other words */

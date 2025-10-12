@@ -127,6 +127,10 @@ struct rforth_ctx {
     bool skip_mode;                      /* True when skipping execution */
     int skip_depth;                      /* Nesting depth during skip */
     
+    /* Loop control */
+    const char *loop_start[32];          /* Loop start positions */
+    int loop_sp;                         /* Loop stack pointer */
+    
     /* Variables */
     variable_entry_t *variables;         /* Variable linked list */
 };

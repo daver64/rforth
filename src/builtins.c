@@ -648,6 +648,161 @@ static void builtin_less_equals(rforth_ctx_t *ctx) {
     stack_push_int(ctx->data_stack, less_equal ? -1 : 0);
 }
 
+/* Loop constructs */
+static void builtin_begin(rforth_ctx_t *ctx) {
+    /* BEGIN - Start indefinite loop */
+    
+    /* If we're in skip mode, track nesting */
+    if (ctx->skip_mode) {
+        ctx->skip_depth++;
+        return;
+    }
+    
+    /* Push BEGIN onto control flow stack */
+    if (ctx->cf_sp >= 32) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Control flow stack overflow");
+        return;
+    }
+    
+    /* Save current parser position for loop restart */
+    if (ctx->loop_sp >= 32) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Loop stack overflow");
+        return;
+    }
+    
+    ctx->loop_start[ctx->loop_sp] = ctx->parser->current;
+    ctx->loop_sp++;
+    
+    ctx->cf_stack[ctx->cf_sp].type = CF_BEGIN;
+    ctx->cf_stack[ctx->cf_sp].address = ctx->loop_sp - 1;  /* Index into loop_start array */
+    ctx->cf_sp++;
+}
+
+static void builtin_until(rforth_ctx_t *ctx) {
+    /* UNTIL - End loop if condition is true ( flag -- ) */
+    
+    /* If we're skipping and this is nested, just decrement depth */
+    if (ctx->skip_mode && ctx->skip_depth > 1) {
+        ctx->skip_depth--;
+        return;
+    }
+    
+    /* Check control flow stack */
+    if (ctx->cf_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "UNTIL without matching BEGIN");
+        return;
+    }
+    
+    ctx->cf_sp--;
+    if (ctx->cf_stack[ctx->cf_sp].type != CF_BEGIN) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "UNTIL without matching BEGIN");
+        return;
+    }
+    
+    /* If we were skipping, stop now */
+    if (ctx->skip_mode) {
+        ctx->skip_mode = false;
+        ctx->skip_depth = 0;
+        ctx->loop_sp--;  /* Pop loop stack */
+        return;
+    }
+    
+    /* Pop condition from stack */
+    cell_t condition;
+    if (!stack_pop(ctx->data_stack, &condition)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "UNTIL requires condition on stack");
+        return;
+    }
+    
+    /* Check if condition is true (non-zero) */
+    bool exit_loop = false;
+    if (condition.type == CELL_INT) {
+        exit_loop = (condition.value.i != 0);
+    } else {
+        exit_loop = (condition.value.f != 0.0);
+    }
+    
+    if (exit_loop) {
+        /* Exit loop - pop loop stack */
+        ctx->loop_sp--;
+    } else {
+        /* Continue loop - restore parser position */
+        int loop_index = ctx->cf_stack[ctx->cf_sp].address;
+        ctx->parser->current = ctx->loop_start[loop_index];
+        
+        /* Push BEGIN back onto control flow stack for next iteration */
+        ctx->cf_stack[ctx->cf_sp].type = CF_BEGIN;
+        ctx->cf_stack[ctx->cf_sp].address = loop_index;
+        ctx->cf_sp++;
+    }
+}
+
+static void builtin_while(rforth_ctx_t *ctx) {
+    /* WHILE - Continue loop if condition is true ( flag -- ) */
+    
+    /* If we're in skip mode, track nesting */
+    if (ctx->skip_mode) {
+        return;  /* Don't change skip state */
+    }
+    
+    /* Pop condition from stack */
+    cell_t condition;
+    if (!stack_pop(ctx->data_stack, &condition)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "WHILE requires condition on stack");
+        return;
+    }
+    
+    /* Check if condition is false */
+    bool continue_loop = false;
+    if (condition.type == CELL_INT) {
+        continue_loop = (condition.value.i != 0);
+    } else {
+        continue_loop = (condition.value.f != 0.0);
+    }
+    
+    if (!continue_loop) {
+        /* Condition is false - enter skip mode until REPEAT */
+        ctx->skip_mode = true;
+        ctx->skip_depth = 1;
+    }
+}
+
+static void builtin_repeat(rforth_ctx_t *ctx) {
+    /* REPEAT - End of BEGIN/WHILE loop */
+    
+    /* If we're skipping due to false WHILE, stop skipping and exit loop */
+    if (ctx->skip_mode) {
+        ctx->skip_mode = false;
+        ctx->skip_depth = 0;
+        
+        /* Pop control flow and loop stacks */
+        if (ctx->cf_sp > 0) ctx->cf_sp--;
+        if (ctx->loop_sp > 0) ctx->loop_sp--;
+        return;
+    }
+    
+    /* Check control flow stack */
+    if (ctx->cf_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "REPEAT without matching BEGIN");
+        return;
+    }
+    
+    ctx->cf_sp--;
+    if (ctx->cf_stack[ctx->cf_sp].type != CF_BEGIN) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "REPEAT without matching BEGIN");
+        return;
+    }
+    
+    /* Loop back to BEGIN */
+    int loop_index = ctx->cf_stack[ctx->cf_sp].address;
+    ctx->parser->current = ctx->loop_start[loop_index];
+    
+    /* Push BEGIN back onto control flow stack for next iteration */
+    ctx->cf_stack[ctx->cf_sp].type = CF_BEGIN;
+    ctx->cf_stack[ctx->cf_sp].address = loop_index;
+    ctx->cf_sp++;
+}
+
 /* String operations */
 static void builtin_s_quote(rforth_ctx_t *ctx) {
     /* S" - Compile string literal ( -- addr len ) */
@@ -943,6 +1098,10 @@ static const builtin_word_t builtin_words[] = {
     {"if", builtin_if},
     {"then", builtin_then},
     {"else", builtin_else},
+    {"begin", builtin_begin},
+    {"until", builtin_until},
+    {"while", builtin_while},
+    {"repeat", builtin_repeat},
     
     /* Variables */
     {"variable", builtin_variable},
