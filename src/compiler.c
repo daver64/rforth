@@ -1,6 +1,8 @@
 #include "compiler.h"
 #include "rforth.h"
 #include <ctype.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 /* Compiler context implementation */
 struct compiler_ctx {
@@ -73,7 +75,7 @@ compiler_ctx_t* compiler_create(const char *output_file) {
         free(compiler);
         return NULL;
     }
-    sprintf(compiler->output_filename, "%s.c", output_file);
+    snprintf(compiler->output_filename, strlen(output_file) + 10, "%s.c", output_file);
     
     /* Store executable name */
     compiler->executable_name = malloc(strlen(output_file) + 1);
@@ -82,7 +84,8 @@ compiler_ctx_t* compiler_create(const char *output_file) {
         free(compiler);
         return NULL;
     }
-    strcpy(compiler->executable_name, output_file);
+    strncpy(compiler->executable_name, output_file, strlen(output_file));
+    compiler->executable_name[strlen(output_file)] = '\0';
     
     /* Open output file */
     compiler->output = fopen(compiler->output_filename, "w");
@@ -426,16 +429,51 @@ bool compile_forth_to_c(const char *input_file, const char *output_file) {
 bool invoke_c_compiler(const char *c_file, const char *output_file) {
     if (!c_file || !output_file) return false;
     
-    /* Build gcc command */
-    char command[1024];
-    snprintf(command, sizeof(command), "gcc -O2 -o \"%s\" \"%s\"", output_file, c_file);
-    
-    /* Execute gcc */
-    int result = system(command);
-    if (result == 0) {
-        return true;
-    } else {
-        fprintf(stderr, "gcc compilation failed (exit code: %d)\n", result);
+    /* Validate file paths to prevent injection */
+    if (strstr(c_file, "..") || strstr(output_file, "..") ||
+        strchr(c_file, ';') || strchr(output_file, ';') ||
+        strchr(c_file, '&') || strchr(output_file, '&') ||
+        strchr(c_file, '|') || strchr(output_file, '|')) {
+        fprintf(stderr, "Error: Invalid characters in file paths\n");
         return false;
+    }
+    
+    /* Fork and exec gcc safely */
+    pid_t pid = fork();
+    if (pid == -1) {
+        fprintf(stderr, "Error: Failed to fork process\n");
+        return false;
+    }
+    
+    if (pid == 0) {
+        /* Child process - exec gcc */
+        char *args[] = {
+            "gcc",
+            "-O2",
+            "-o",
+            (char*)output_file,
+            (char*)c_file,
+            NULL
+        };
+        
+        execvp("gcc", args);
+        /* If we get here, exec failed */
+        fprintf(stderr, "Error: Failed to execute gcc\n");
+        _exit(1);
+    } else {
+        /* Parent process - wait for child */
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            fprintf(stderr, "Error: Failed to wait for gcc process\n");
+            return false;
+        }
+        
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            return true;
+        } else {
+            fprintf(stderr, "gcc compilation failed (exit code: %d)\n", 
+                    WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+            return false;
+        }
     }
 }

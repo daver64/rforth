@@ -23,6 +23,7 @@
 #include "dict.h"
 #include "parser.h"
 #include "compiler.h"
+#include "io.h"
 
 /* Error codes */
 typedef enum {
@@ -41,8 +42,8 @@ typedef struct rforth_ctx rforth_ctx_t;
 
 /* Main context structure */
 struct rforth_ctx {
-    stack_t *data_stack;        /* Data stack */
-    stack_t *return_stack;      /* Return stack */
+    rforth_stack_t *data_stack;        /* Data stack */
+    rforth_stack_t *return_stack;      /* Return stack */
     dict_t *dict;              /* Word dictionary */
     parser_t *parser;          /* Parser state */
     parse_state_t state;       /* Interpreter state */

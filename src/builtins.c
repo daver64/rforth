@@ -1,4 +1,5 @@
 #include "rforth.h"
+#include "turnkey.h"
 #include <stdio.h>
 
 /* Forward declarations */
@@ -69,6 +70,7 @@ static const builtin_word_t builtin_words[] = {
     {".S", builtin_dot_s},
     {"WORDS", builtin_words_cmd},
     {"BYE", builtin_bye},
+    {"TURNKEY", builtin_turnkey},
     
     /* End marker */
     {NULL, NULL}

@@ -176,7 +176,8 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
                 fprintf(stderr, "Error: Memory allocation failed\n");
                 goto error;
             }
-            strcpy(word_name, name_token.text);
+            strncpy(word_name, name_token.text, strlen(name_token.text));
+            word_name[strlen(name_token.text)] = '\0';
             
             /* Initialize compile buffer */
             compile_buffer_size = 1024;
@@ -245,10 +246,10 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
             
             /* Add token to buffer */
             if (compile_buffer_pos > 0) {
-                strcat(compile_buffer, " ");
+                strncat(compile_buffer, " ", compile_buffer_size - compile_buffer_pos - 1);
                 compile_buffer_pos++;
             }
-            strcat(compile_buffer, token_text);
+            strncat(compile_buffer, token_text, compile_buffer_size - compile_buffer_pos - 1);
             compile_buffer_pos += strlen(token_text);
             
         } else {

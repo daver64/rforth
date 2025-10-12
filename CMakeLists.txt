@@ -33,6 +33,8 @@ set(RFORTH_SOURCES
     src/builtins.c
     src/codegen.c
     src/runtime.c
+    src/io.c
+    src/turnkey.c
 )
 
 # Header files
@@ -42,6 +44,8 @@ set(RFORTH_HEADERS
     include/stack.h
     include/parser.h
     include/compiler.h
+    include/io.h
+    include/turnkey.h
 )
 
 # Main executable
@@ -53,6 +57,7 @@ set(RUNTIME_SOURCES
     src/dict.c
     src/runtime.c
     src/builtins.c
+    src/io.c
 )
 
 add_library(rforth_runtime STATIC ${RUNTIME_SOURCES})

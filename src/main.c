@@ -44,10 +44,18 @@ int main(int argc, char *argv[]) {
         input_file = argv[optind];
     }
     
+    /* Initialize I/O system */
+    io_ctx_t *io_ctx = io_init();
+    if (!io_ctx) {
+        fprintf(stderr, "Error: Failed to initialize I/O system\n");
+        return 1;
+    }
+    
     /* Initialize RForth context */
     rforth_ctx_t *ctx = rforth_init();
     if (!ctx) {
-        fprintf(stderr, "Error: Failed to initialize RForth\n");
+        io_error_string("Error: Failed to initialize RForth\n");
+        io_cleanup(io_ctx);
         return 1;
     }
     
@@ -90,6 +98,7 @@ int main(int argc, char *argv[]) {
     
     /* Cleanup */
     rforth_cleanup(ctx);
+    io_cleanup(io_ctx);
     return result;
 }
 

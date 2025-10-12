@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-stack_t* stack_create(int size) {
-    stack_t *stack = malloc(sizeof(stack_t));
+rforth_stack_t* stack_create(int size) {
+    rforth_stack_t *stack = malloc(sizeof(rforth_stack_t));
     if (!stack) return NULL;
     
     stack->data = malloc(sizeof(cell_t) * size);
@@ -17,14 +17,14 @@ stack_t* stack_create(int size) {
     return stack;
 }
 
-void stack_destroy(stack_t *stack) {
+void stack_destroy(rforth_stack_t *stack) {
     if (stack) {
         free(stack->data);
         free(stack);
     }
 }
 
-bool stack_push(stack_t *stack, cell_t value) {
+bool stack_push(rforth_stack_t *stack, cell_t value) {
     if (!stack || stack_is_full(stack)) {
         return false;
     }
@@ -33,7 +33,7 @@ bool stack_push(stack_t *stack, cell_t value) {
     return true;
 }
 
-bool stack_pop(stack_t *stack, cell_t *value) {
+bool stack_pop(rforth_stack_t *stack, cell_t *value) {
     if (!stack || stack_is_empty(stack)) {
         return false;
     }
@@ -45,7 +45,7 @@ bool stack_pop(stack_t *stack, cell_t *value) {
     return true;
 }
 
-bool stack_peek(stack_t *stack, cell_t *value) {
+bool stack_peek(rforth_stack_t *stack, cell_t *value) {
     if (!stack || stack_is_empty(stack)) {
         return false;
     }
@@ -56,19 +56,19 @@ bool stack_peek(stack_t *stack, cell_t *value) {
     return true;
 }
 
-bool stack_is_empty(stack_t *stack) {
+bool stack_is_empty(rforth_stack_t *stack) {
     return !stack || stack->sp < 0;
 }
 
-bool stack_is_full(stack_t *stack) {
+bool stack_is_full(rforth_stack_t *stack) {
     return !stack || stack->sp >= stack->size - 1;
 }
 
-int stack_depth(stack_t *stack) {
+int stack_depth(rforth_stack_t *stack) {
     return stack ? stack->sp + 1 : 0;
 }
 
-void stack_clear(stack_t *stack) {
+void stack_clear(rforth_stack_t *stack) {
     if (stack) {
         stack->sp = -1;
     }
@@ -76,7 +76,7 @@ void stack_clear(stack_t *stack) {
 
 /* Stack manipulation operations */
 
-bool stack_dup(stack_t *stack) {
+bool stack_dup(rforth_stack_t *stack) {
     if (!stack || stack_is_empty(stack) || stack_is_full(stack)) {
         return false;
     }
@@ -85,11 +85,11 @@ bool stack_dup(stack_t *stack) {
     return stack_push(stack, top);
 }
 
-bool stack_drop(stack_t *stack) {
+bool stack_drop(rforth_stack_t *stack) {
     return stack_pop(stack, NULL);
 }
 
-bool stack_swap(stack_t *stack) {
+bool stack_swap(rforth_stack_t *stack) {
     if (!stack || stack_depth(stack) < 2) {
         return false;
     }
@@ -103,7 +103,7 @@ bool stack_swap(stack_t *stack) {
     return true;
 }
 
-bool stack_over(stack_t *stack) {
+bool stack_over(rforth_stack_t *stack) {
     if (!stack || stack_depth(stack) < 2 || stack_is_full(stack)) {
         return false;
     }
@@ -112,7 +112,7 @@ bool stack_over(stack_t *stack) {
     return stack_push(stack, second);
 }
 
-bool stack_rot(stack_t *stack) {
+bool stack_rot(rforth_stack_t *stack) {
     if (!stack || stack_depth(stack) < 3) {
         return false;
     }
@@ -129,7 +129,7 @@ bool stack_rot(stack_t *stack) {
     return true;
 }
 
-void stack_print(stack_t *stack) {
+void stack_print(rforth_stack_t *stack) {
     if (!stack) {
         printf("<null stack>\n");
         return;

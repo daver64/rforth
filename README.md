@@ -155,4 +155,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+📋 **[Development Roadmap & Analysis →](ANALYSIS.md)**
+
+Contributions are welcome! Please feel free to submit a Pull Request. Check the [ANALYSIS.md](ANALYSIS.md) file for current development priorities and code quality assessment.

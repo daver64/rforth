@@ -29,6 +29,7 @@
 *.dylib
 bin/
 lib/
+build/
 
 # Executables
 *.exe
