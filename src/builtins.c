@@ -2,6 +2,7 @@
 #include "turnkey.h"
 #include <stdio.h>
 #include <math.h>
+#include <ctype.h>
 
 /* Forward declarations */
 static void builtin_add(rforth_ctx_t *ctx);
@@ -244,6 +245,114 @@ static void builtin_min(rforth_ctx_t *ctx) {
     }
 }
 
+/* Advanced stack operations */
+static void builtin_pick(rforth_ctx_t *ctx) {
+    /* PICK - Copy nth stack item to top ( n -- x ) */
+    cell_t index_cell;
+    if (!stack_pop(ctx->data_stack, &index_cell)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "PICK requires index on stack");
+        return;
+    }
+    
+    if (index_cell.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "PICK requires integer index");
+        return;
+    }
+    
+    int64_t index = index_cell.value.i;
+    cell_t value;
+    if (!stack_pick(ctx->data_stack, (int)index, &value)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "PICK index out of range");
+        return;
+    }
+    
+    stack_push_cell(ctx->data_stack, value);
+}
+
+static void builtin_roll(rforth_ctx_t *ctx) {
+    /* ROLL - Move nth stack item to top ( n -- ) */
+    cell_t count_cell;
+    if (!stack_pop(ctx->data_stack, &count_cell)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "ROLL requires count on stack");
+        return;
+    }
+    
+    if (count_cell.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "ROLL requires integer count");
+        return;
+    }
+    
+    int64_t count = count_cell.value.i;
+    if (count <= 0) return;  /* No-op for count <= 0 */
+    
+    /* Roll stack by moving nth item to top */
+    cell_t temp[32];  /* Temporary storage */
+    if (count >= 32) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_OPERATION, "ROLL count too large");
+        return;
+    }
+    
+    /* Pop count+1 items */
+    for (int i = 0; i <= count; i++) {
+        if (!stack_pop(ctx->data_stack, &temp[i])) {
+            set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "ROLL insufficient stack depth");
+            return;
+        }
+    }
+    
+    /* Push back in rolled order: item at count goes to top */
+    stack_push_cell(ctx->data_stack, temp[count]);
+    for (int i = 0; i < count; i++) {
+        stack_push_cell(ctx->data_stack, temp[i]);
+    }
+}
+
+static void builtin_depth(rforth_ctx_t *ctx) {
+    /* DEPTH - Get current stack depth ( -- n ) */
+    int depth = stack_depth(ctx->data_stack);
+    stack_push_int(ctx->data_stack, depth);
+}
+
+static void builtin_two_dup(rforth_ctx_t *ctx) {
+    /* 2DUP - Duplicate top two stack items ( a b -- a b a b ) */
+    cell_t a, b;
+    if (!stack_pop(ctx->data_stack, &a) || !stack_pop(ctx->data_stack, &b)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "2DUP requires two values on stack");
+        return;
+    }
+    
+    /* Push back: b a b a */
+    stack_push_cell(ctx->data_stack, b);
+    stack_push_cell(ctx->data_stack, a);
+    stack_push_cell(ctx->data_stack, b);
+    stack_push_cell(ctx->data_stack, a);
+}
+
+static void builtin_two_drop(rforth_ctx_t *ctx) {
+    /* 2DROP - Drop top two stack items ( a b -- ) */
+    cell_t dummy;
+    if (!stack_pop(ctx->data_stack, &dummy) || !stack_pop(ctx->data_stack, &dummy)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "2DROP requires two values on stack");
+        return;
+    }
+}
+
+static void builtin_two_swap(rforth_ctx_t *ctx) {
+    /* 2SWAP - Swap top two pairs ( a b c d -- c d a b ) */
+    cell_t a, b, c, d;
+    if (!stack_pop(ctx->data_stack, &a) || !stack_pop(ctx->data_stack, &b) ||
+        !stack_pop(ctx->data_stack, &c) || !stack_pop(ctx->data_stack, &d)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "2SWAP requires four values on stack");
+        return;
+    }
+    
+    /* Push back in swapped order: c d a b */
+    stack_push_cell(ctx->data_stack, b);
+    stack_push_cell(ctx->data_stack, a);
+    stack_push_cell(ctx->data_stack, d);
+    stack_push_cell(ctx->data_stack, c);
+}
+
 /* Return stack operations */
 static void builtin_to_r(rforth_ctx_t *ctx) {
     /* >R - Move value from data stack to return stack */
@@ -285,6 +394,337 @@ static void builtin_r_fetch(rforth_ctx_t *ctx) {
         set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Data stack overflow");
         return;
     }
+}
+
+/* Extended arithmetic operations */
+static void builtin_two_star(rforth_ctx_t *ctx) {
+    /* 2* - Multiply by 2 ( n -- n*2 ) */
+    cell_t a;
+    if (!stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "2* requires value on stack");
+        return;
+    }
+    
+    if (a.type == CELL_INT) {
+        stack_push_int(ctx->data_stack, a.value.i * 2);
+    } else {
+        stack_push_float(ctx->data_stack, a.value.f * 2.0);
+    }
+}
+
+static void builtin_two_slash(rforth_ctx_t *ctx) {
+    /* 2/ - Divide by 2 ( n -- n/2 ) */
+    cell_t a;
+    if (!stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "2/ requires value on stack");
+        return;
+    }
+    
+    if (a.type == CELL_INT) {
+        stack_push_int(ctx->data_stack, a.value.i / 2);
+    } else {
+        stack_push_float(ctx->data_stack, a.value.f / 2.0);
+    }
+}
+
+static void builtin_slash_mod(rforth_ctx_t *ctx) {
+    /* /MOD - Divide with remainder ( n1 n2 -- rem quot ) */
+    cell_t divisor, dividend;
+    if (!stack_pop(ctx->data_stack, &divisor) || !stack_pop(ctx->data_stack, &dividend)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "/MOD requires two values on stack");
+        return;
+    }
+    
+    if (divisor.type != CELL_INT || dividend.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "/MOD requires integer operands");
+        return;
+    }
+    
+    if (divisor.value.i == 0) {
+        set_error_simple(ctx, RFORTH_ERROR_DIVISION_BY_ZERO, "/MOD division by zero");
+        return;
+    }
+    
+    int64_t quot = dividend.value.i / divisor.value.i;
+    int64_t rem = dividend.value.i % divisor.value.i;
+    
+    stack_push_int(ctx->data_stack, rem);   /* remainder first */
+    stack_push_int(ctx->data_stack, quot);  /* quotient second */
+}
+
+static void builtin_question_dup(rforth_ctx_t *ctx) {
+    /* ?DUP - Duplicate if non-zero ( n -- n n | n ) */
+    cell_t a;
+    if (!stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "?DUP requires value on stack");
+        return;
+    }
+    
+    /* Always push the value back */
+    stack_push_cell(ctx->data_stack, a);
+    
+    /* If non-zero, duplicate it */
+    bool is_nonzero = false;
+    if (a.type == CELL_INT) {
+        is_nonzero = (a.value.i != 0);
+    } else {
+        is_nonzero = (a.value.f != 0.0);
+    }
+    
+    if (is_nonzero) {
+        stack_push_cell(ctx->data_stack, a);
+    }
+}
+
+static void builtin_zero_equals(rforth_ctx_t *ctx) {
+    /* 0= - Test for zero ( n -- flag ) */
+    cell_t a;
+    if (!stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "0= requires value on stack");
+        return;
+    }
+    
+    bool is_zero = false;
+    if (a.type == CELL_INT) {
+        is_zero = (a.value.i == 0);
+    } else {
+        is_zero = (a.value.f == 0.0);
+    }
+    
+    stack_push_int(ctx->data_stack, is_zero ? -1 : 0);  /* Forth true is -1 */
+}
+
+static void builtin_zero_less(rforth_ctx_t *ctx) {
+    /* 0< - Test for negative ( n -- flag ) */
+    cell_t a;
+    if (!stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "0< requires value on stack");
+        return;
+    }
+    
+    bool is_negative = false;
+    if (a.type == CELL_INT) {
+        is_negative = (a.value.i < 0);
+    } else {
+        is_negative = (a.value.f < 0.0);
+    }
+    
+    stack_push_int(ctx->data_stack, is_negative ? -1 : 0);
+}
+
+static void builtin_zero_greater(rforth_ctx_t *ctx) {
+    /* 0> - Test for positive ( n -- flag ) */
+    cell_t a;
+    if (!stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "0> requires value on stack");
+        return;
+    }
+    
+    bool is_positive = false;
+    if (a.type == CELL_INT) {
+        is_positive = (a.value.i > 0);
+    } else {
+        is_positive = (a.value.f > 0.0);
+    }
+    
+    stack_push_int(ctx->data_stack, is_positive ? -1 : 0);
+}
+
+/* Additional comparison operators */
+static void builtin_not_equals(rforth_ctx_t *ctx) {
+    /* <> - Not equal ( n1 n2 -- flag ) */
+    cell_t b, a;
+    if (!stack_pop(ctx->data_stack, &b) || !stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "<> requires two values on stack");
+        return;
+    }
+    
+    bool not_equal = false;
+    if (a.type == CELL_INT && b.type == CELL_INT) {
+        not_equal = (a.value.i != b.value.i);
+    } else if (a.type == CELL_FLOAT && b.type == CELL_FLOAT) {
+        not_equal = (a.value.f != b.value.f);
+    } else if (a.type == CELL_INT && b.type == CELL_FLOAT) {
+        not_equal = ((double)a.value.i != b.value.f);
+    } else if (a.type == CELL_FLOAT && b.type == CELL_INT) {
+        not_equal = (a.value.f != (double)b.value.i);
+    }
+    
+    stack_push_int(ctx->data_stack, not_equal ? -1 : 0);
+}
+
+static void builtin_greater_equals(rforth_ctx_t *ctx) {
+    /* >= - Greater than or equal ( n1 n2 -- flag ) */
+    cell_t b, a;
+    if (!stack_pop(ctx->data_stack, &b) || !stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, ">= requires two values on stack");
+        return;
+    }
+    
+    bool greater_equal = false;
+    if (a.type == CELL_INT && b.type == CELL_INT) {
+        greater_equal = (a.value.i >= b.value.i);
+    } else if (a.type == CELL_FLOAT && b.type == CELL_FLOAT) {
+        greater_equal = (a.value.f >= b.value.f);
+    } else if (a.type == CELL_INT && b.type == CELL_FLOAT) {
+        greater_equal = ((double)a.value.i >= b.value.f);
+    } else if (a.type == CELL_FLOAT && b.type == CELL_INT) {
+        greater_equal = (a.value.f >= (double)b.value.i);
+    }
+    
+    stack_push_int(ctx->data_stack, greater_equal ? -1 : 0);
+}
+
+static void builtin_less_equals(rforth_ctx_t *ctx) {
+    /* <= - Less than or equal ( n1 n2 -- flag ) */
+    cell_t b, a;
+    if (!stack_pop(ctx->data_stack, &b) || !stack_pop(ctx->data_stack, &a)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "<= requires two values on stack");
+        return;
+    }
+    
+    bool less_equal = false;
+    if (a.type == CELL_INT && b.type == CELL_INT) {
+        less_equal = (a.value.i <= b.value.i);
+    } else if (a.type == CELL_FLOAT && b.type == CELL_FLOAT) {
+        less_equal = (a.value.f <= b.value.f);
+    } else if (a.type == CELL_INT && b.type == CELL_FLOAT) {
+        less_equal = ((double)a.value.i <= b.value.f);
+    } else if (a.type == CELL_FLOAT && b.type == CELL_INT) {
+        less_equal = (a.value.f <= (double)b.value.i);
+    }
+    
+    stack_push_int(ctx->data_stack, less_equal ? -1 : 0);
+}
+
+/* String operations */
+static void builtin_s_quote(rforth_ctx_t *ctx) {
+    /* S" - Compile string literal ( -- addr len ) */
+    /* For interpreted mode, we need to parse until closing quote */
+    /* This is a simplified implementation - proper Forth would compile */
+    
+    /* Find the closing quote in the input stream */
+    const char *input = ctx->parser->current;
+    if (!input) {
+        set_error_simple(ctx, RFORTH_ERROR_UNTERMINATED_STRING, "S\" requires string");
+        return;
+    }
+    
+    /* Skip whitespace */
+    while (*input && isspace(*input)) input++;
+    
+    const char *start = input;
+    const char *end = strchr(start, '"');
+    if (!end) {
+        set_error_simple(ctx, RFORTH_ERROR_UNTERMINATED_STRING, "Unterminated string literal");
+        return;
+    }
+    
+    /* Calculate length */
+    size_t len = end - start;
+    
+    /* Allocate string storage (simplified - should use heap) */
+    static char string_buffer[1024];
+    if (len >= sizeof(string_buffer)) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "String too long");
+        return;
+    }
+    
+    strncpy(string_buffer, start, len);
+    string_buffer[len] = '\0';
+    
+    /* Push address and length */
+    stack_push_int(ctx->data_stack, (long)string_buffer);
+    stack_push_int(ctx->data_stack, (long)len);
+    
+    /* Advance input pointer past closing quote */
+    ctx->parser->current = end + 1;
+}
+
+static void builtin_dot_quote(rforth_ctx_t *ctx) {
+    /* ." - Print string literal */
+    /* Parse until closing quote and print immediately */
+    
+    const char *input = ctx->parser->current;
+    if (!input) {
+        set_error_simple(ctx, RFORTH_ERROR_UNTERMINATED_STRING, ".\" requires string");
+        return;
+    }
+    
+    /* Skip whitespace */
+    while (*input && isspace(*input)) input++;
+    
+    const char *start = input;
+    const char *end = strchr(start, '"');
+    if (!end) {
+        set_error_simple(ctx, RFORTH_ERROR_UNTERMINATED_STRING, "Unterminated string literal");
+        return;
+    }
+    
+    /* Print the string */
+    printf("%.*s", (int)(end - start), start);
+    
+    /* Advance input pointer past closing quote */
+    ctx->parser->current = end + 1;
+}
+
+static void builtin_type(rforth_ctx_t *ctx) {
+    /* TYPE - Print string from address and length ( addr len -- ) */
+    cell_t len, addr;
+    if (!stack_pop(ctx->data_stack, &len) || !stack_pop(ctx->data_stack, &addr)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "TYPE requires address and length");
+        return;
+    }
+    
+    if (len.type != CELL_INT || addr.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "TYPE requires integer operands");
+        return;
+    }
+    
+    if (len.value.i < 0) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "TYPE length cannot be negative");
+        return;
+    }
+    
+    const char *str = (const char *)(uintptr_t)addr.value.i;
+    if (!str && len.value.i > 0) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "TYPE invalid string address");
+        return;
+    }
+    
+    /* Print the string */
+    printf("%.*s", (int)len.value.i, str);
+}
+
+static void builtin_count(rforth_ctx_t *ctx) {
+    /* COUNT - Convert counted string to address/length ( caddr -- addr len ) */
+    /* Counted string: first byte is length, followed by string data */
+    cell_t caddr;
+    if (!stack_pop(ctx->data_stack, &caddr)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "COUNT requires counted string address");
+        return;
+    }
+    
+    if (caddr.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "COUNT requires integer address");
+        return;
+    }
+    
+    const unsigned char *cstr = (const unsigned char *)(uintptr_t)caddr.value.i;
+    if (!cstr) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "COUNT invalid address");
+        return;
+    }
+    
+    /* First byte is the length */
+    unsigned char len = cstr[0];
+    
+    /* Address of string data (skip length byte) */
+    const char *str_addr = (const char *)(cstr + 1);
+    
+    /* Push string address and length */
+    stack_push_int(ctx->data_stack, (long)str_addr);
+    stack_push_int(ctx->data_stack, (long)len);
 }
 
 /* Memory operations */
@@ -407,6 +847,7 @@ static const builtin_word_t builtin_words[] = {
     {"/", builtin_div},
     {"mod", builtin_mod},
     {"negate", builtin_negate},
+    {"abs", builtin_abs},
     
     /* Stack manipulation */
     {"dup", builtin_dup},
@@ -425,6 +866,9 @@ static const builtin_word_t builtin_words[] = {
     {"=", builtin_equal},
     {"<", builtin_less},
     {">", builtin_greater},
+    {"<>", builtin_not_equals},
+    {">=", builtin_greater_equals},
+    {"<=", builtin_less_equals},
     
     /* Logic */
     {"and", builtin_and},
@@ -464,9 +908,28 @@ static const builtin_word_t builtin_words[] = {
     {"r>", builtin_from_r},
     {"r@", builtin_r_fetch},
     
+    /* Advanced stack operations */
+    {"pick", builtin_pick},
+    {"roll", builtin_roll},
+    {"depth", builtin_depth},
+    {"2dup", builtin_two_dup},
+    {"2drop", builtin_two_drop},
+    {"2swap", builtin_two_swap},
+    
     /* Extended arithmetic */
     {"1+", builtin_one_plus},
     {"1-", builtin_one_minus},
+    {"2*", builtin_two_star},
+    {"2/", builtin_two_slash},
+    {"/mod", builtin_slash_mod},
+    {"?dup", builtin_question_dup},
+    {"0=", builtin_zero_equals},
+    {"0<", builtin_zero_less},
+    {"0>", builtin_zero_greater},
+    {"s\"", builtin_s_quote},
+    {".\"", builtin_dot_quote},
+    {"type", builtin_type},
+    {"count", builtin_count},
     {"max", builtin_max},
     {"min", builtin_min},
     
