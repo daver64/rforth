@@ -149,6 +149,10 @@ struct rforth_ctx {
     /* Numeric formatting buffer for ANSI words */
     char format_buffer[256];             /* Buffer for numeric formatting */
     int format_pos;                      /* Current position in format buffer */
+    
+    /* Compilation state */
+    bool compiling;                      /* True when in compile mode */
+    char *current_word_name;             /* Name of word being compiled */
 };
 
 /* Main API functions */

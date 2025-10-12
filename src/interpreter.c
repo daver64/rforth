@@ -49,6 +49,10 @@ rforth_ctx_t* rforth_init(void) {
     ctx->format_pos = 0;
     ctx->format_buffer[0] = '\0';
     
+    /* Initialize compilation state */
+    ctx->compiling = false;
+    ctx->current_word_name = NULL;
+    
     rforth_clear_error(ctx);
     
     /* Register builtin words */
@@ -71,6 +75,9 @@ void rforth_cleanup(rforth_ctx_t *ctx) {
     
     /* Clean up HERE pointer */
     if (ctx->here_ptr) free(ctx->here_ptr);
+    
+    /* Clean up compilation state */
+    if (ctx->current_word_name) free(ctx->current_word_name);
     
     /* Clean up variables */
     variable_entry_t *var = ctx->variables;

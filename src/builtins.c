@@ -112,6 +112,14 @@ static void builtin_cells(rforth_ctx_t *ctx);
 static void builtin_fill(rforth_ctx_t *ctx);
 static void builtin_move(rforth_ctx_t *ctx);
 
+/* Phase 4: Compilation words */
+static void builtin_exit(rforth_ctx_t *ctx);
+static void builtin_literal(rforth_ctx_t *ctx);
+static void builtin_postpone(rforth_ctx_t *ctx);
+static void builtin_recurse(rforth_ctx_t *ctx);
+static void builtin_left_bracket(rforth_ctx_t *ctx);
+static void builtin_right_bracket(rforth_ctx_t *ctx);
+
 /* Variable and memory operations */
 static void builtin_variable(rforth_ctx_t *ctx);
 static void builtin_constant(rforth_ctx_t *ctx);
@@ -1842,13 +1850,26 @@ static void builtin_unloop(rforth_ctx_t *ctx) {
 static void builtin_colon(rforth_ctx_t *ctx) {
     /* : - Begin word definition ( C: "<spaces>name" -- colon-sys ) */
     printf(": - Begin word definition (simplified implementation)\n");
-    ctx->state_var = -1; /* Enter compile mode */
+    ctx->state_var = -1;    /* Enter compile mode */
+    ctx->compiling = true;  /* Set compilation flag */
+    
+    /* In a full implementation, we would parse the next word name */
+    if (ctx->current_word_name) {
+        free(ctx->current_word_name);
+    }
+    ctx->current_word_name = strdup("unnamed_word"); /* Simplified */
 }
 
 static void builtin_semicolon(rforth_ctx_t *ctx) {
     /* ; - End word definition ( C: colon-sys -- ) */
     printf("; - End word definition (simplified implementation)\n");
-    ctx->state_var = 0; /* Return to interpret mode */
+    ctx->state_var = 0;     /* Return to interpret mode */
+    ctx->compiling = false; /* Clear compilation flag */
+    
+    if (ctx->current_word_name) {
+        free(ctx->current_word_name);
+        ctx->current_word_name = NULL;
+    }
 }
 
 /* Phase 2: Numeric Formatting Words */
@@ -2195,6 +2216,79 @@ static void builtin_move(rforth_ctx_t *ctx) {
     memmove((void*)dest_cell.value.i, (void*)src_cell.value.i, (size_t)count_cell.value.i);
 }
 
+/* Phase 4: Compilation Words */
+
+static void builtin_exit(rforth_ctx_t *ctx) {
+    /* EXIT - Return from current word definition ( -- ) */
+    printf("EXIT - Exiting current word definition\n");
+    /* In a full implementation, this would terminate the current word */
+    /* For now, simplified as a message */
+}
+
+static void builtin_literal(rforth_ctx_t *ctx) {
+    /* LITERAL - Compile runtime behavior to push a literal ( x -- ) */
+    if (ctx->data_stack->size < 1) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "LITERAL requires value on stack");
+        return;
+    }
+    
+    cell_t value;
+    if (!stack_pop(ctx->data_stack, &value)) {
+        RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "LITERAL requires value on stack");
+        return;
+    }
+    
+    /* In compile mode, this would compile code to push the literal */
+    /* For now, simplified implementation */
+    if (ctx->compiling) {
+        printf("LITERAL - Compiling literal ");
+        if (value.type == CELL_INT) {
+            printf("%ld", value.value.i);
+        } else {
+            printf("%g", value.value.f);
+        }
+        printf("\n");
+    } else {
+        /* In interpret mode, just push it back */
+        if (value.type == CELL_INT) {
+            stack_push_int(ctx->data_stack, value.value.i);
+        } else {
+            stack_push_float(ctx->data_stack, value.value.f);
+        }
+    }
+}
+
+static void builtin_postpone(rforth_ctx_t *ctx) {
+    /* POSTPONE - Defer compilation of next word ( -- ) */
+    printf("POSTPONE - Postponing compilation of next word (simplified implementation)\n");
+    /* This is a complex word that would require parsing the next word */
+    /* and compiling code to compile that word at runtime */
+}
+
+static void builtin_recurse(rforth_ctx_t *ctx) {
+    /* RECURSE - Compile recursive call to current word ( -- ) */
+    if (ctx->current_word_name) {
+        printf("RECURSE - Compiling recursive call to '%s'\n", ctx->current_word_name);
+    } else {
+        printf("RECURSE - No current word to recurse to\n");
+    }
+    /* In a full implementation, this would compile a call to the current word */
+}
+
+static void builtin_left_bracket(rforth_ctx_t *ctx) {
+    /* [ - Enter interpretation state ( -- ) */
+    ctx->state_var = 0;      /* Set STATE to interpretation mode */
+    ctx->compiling = false;  /* Exit compile mode */
+    printf("[ - Entering interpretation mode\n");
+}
+
+static void builtin_right_bracket(rforth_ctx_t *ctx) {
+    /* ] - Enter compilation state ( -- ) */
+    ctx->state_var = -1;     /* Set STATE to compilation mode */
+    ctx->compiling = true;   /* Enter compile mode */
+    printf("] - Entering compilation mode\n");
+}
+
 static void builtin_constant(rforth_ctx_t *ctx) {
     /* CONSTANT - Create a named constant (stack-based for now) */
     cell_t value, name_cell;
@@ -2378,6 +2472,14 @@ static const builtin_word_t builtin_words[] = {
     {"cells", builtin_cells},
     {"fill", builtin_fill},
     {"move", builtin_move},
+    
+    /* ANSI Core Words - Phase 4: Compilation */
+    {"exit", builtin_exit},
+    {"literal", builtin_literal},
+    {"postpone", builtin_postpone},
+    {"recurse", builtin_recurse},
+    {"[", builtin_left_bracket},
+    {"]", builtin_right_bracket},
     
     /* End marker */
     {NULL, NULL}
