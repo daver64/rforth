@@ -131,6 +131,11 @@ struct rforth_ctx {
     const char *loop_start[32];          /* Loop start positions */
     int loop_sp;                         /* Loop stack pointer */
     
+    /* DO/LOOP support */
+    int64_t loop_index[32];              /* Current loop indices */
+    int64_t loop_limit[32];              /* Loop limits */
+    int do_loop_sp;                      /* DO/LOOP stack pointer */
+    
     /* Variables */
     variable_entry_t *variables;         /* Variable linked list */
 };

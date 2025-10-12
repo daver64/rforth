@@ -37,6 +37,7 @@ rforth_ctx_t* rforth_init(void) {
     ctx->skip_mode = false;  /* Initialize skip mode */
     ctx->skip_depth = 0;     /* Initialize skip depth */
     ctx->loop_sp = 0;        /* Initialize loop stack pointer */
+    ctx->do_loop_sp = 0;     /* Initialize DO/LOOP stack pointer */
     ctx->variables = NULL;  /* Initialize variable list */
     rforth_clear_error(ctx);
     
@@ -98,7 +99,11 @@ static rforth_error_t interpret_token(rforth_ctx_t *ctx, token_t *token) {
                 strcmp(token->text, "begin") == 0 ||
                 strcmp(token->text, "until") == 0 ||
                 strcmp(token->text, "while") == 0 ||
-                strcmp(token->text, "repeat") == 0) {
+                strcmp(token->text, "repeat") == 0 ||
+                strcmp(token->text, "do") == 0 ||
+                strcmp(token->text, "loop") == 0 ||
+                strcmp(token->text, "+loop") == 0 ||
+                strcmp(token->text, "leave") == 0) {
                 /* These words will handle skip mode logic */
             } else {
                 /* Skip all other words */

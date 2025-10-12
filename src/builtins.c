@@ -44,6 +44,23 @@ static void builtin_begin(rforth_ctx_t *ctx);
 static void builtin_until(rforth_ctx_t *ctx);
 static void builtin_while(rforth_ctx_t *ctx);
 static void builtin_repeat(rforth_ctx_t *ctx);
+static void builtin_do(rforth_ctx_t *ctx);
+static void builtin_loop(rforth_ctx_t *ctx);
+static void builtin_plus_loop(rforth_ctx_t *ctx);
+static void builtin_leave(rforth_ctx_t *ctx);
+static void builtin_i(rforth_ctx_t *ctx);
+static void builtin_j(rforth_ctx_t *ctx);
+
+/* Character I/O operations */
+static void builtin_key(rforth_ctx_t *ctx);
+static void builtin_key_question(rforth_ctx_t *ctx);
+static void builtin_c_fetch(rforth_ctx_t *ctx);
+static void builtin_c_store(rforth_ctx_t *ctx);
+
+/* Advanced mathematics */
+static void builtin_star_slash(rforth_ctx_t *ctx);
+static void builtin_star_slash_mod(rforth_ctx_t *ctx);
+static void builtin_fm_slash_mod(rforth_ctx_t *ctx);
 
 /* Variable and memory operations */
 static void builtin_variable(rforth_ctx_t *ctx);
@@ -803,6 +820,384 @@ static void builtin_repeat(rforth_ctx_t *ctx) {
     ctx->cf_sp++;
 }
 
+/* Counted loops (DO/LOOP) */
+static void builtin_do(rforth_ctx_t *ctx) {
+    /* DO - Start counted loop ( limit index -- ) */
+    
+    /* If we're in skip mode, track nesting */
+    if (ctx->skip_mode) {
+        ctx->skip_depth++;
+        return;
+    }
+    
+    /* Pop index and limit from data stack */
+    cell_t index, limit;
+    if (!stack_pop(ctx->data_stack, &index) || !stack_pop(ctx->data_stack, &limit)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "DO requires limit and index on stack");
+        return;
+    }
+    
+    /* Check stack bounds */
+    if (ctx->do_loop_sp >= 32) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "DO/LOOP stack overflow");
+        return;
+    }
+    
+    if (ctx->loop_sp >= 32) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Loop stack overflow");
+        return;
+    }
+    
+    if (ctx->cf_sp >= 32) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Control flow stack overflow");
+        return;
+    }
+    
+    /* Store loop parameters */
+    ctx->loop_index[ctx->do_loop_sp] = (index.type == CELL_INT) ? index.value.i : (int64_t)index.value.f;
+    ctx->loop_limit[ctx->do_loop_sp] = (limit.type == CELL_INT) ? limit.value.i : (int64_t)limit.value.f;
+    ctx->do_loop_sp++;
+    
+    /* Save loop start position */
+    ctx->loop_start[ctx->loop_sp] = ctx->parser->current;
+    ctx->loop_sp++;
+    
+    /* Push DO onto control flow stack */
+    ctx->cf_stack[ctx->cf_sp].type = CF_DO;
+    ctx->cf_stack[ctx->cf_sp].address = ctx->loop_sp - 1;  /* Index into loop_start array */
+    ctx->cf_sp++;
+}
+
+static void builtin_loop(rforth_ctx_t *ctx) {
+    /* LOOP - End counted loop, increment by 1 */
+    
+    /* If we're skipping and this is nested, just decrement depth */
+    if (ctx->skip_mode && ctx->skip_depth > 1) {
+        ctx->skip_depth--;
+        return;
+    }
+    
+    /* Check control flow stack */
+    if (ctx->cf_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "LOOP without matching DO");
+        return;
+    }
+    
+    ctx->cf_sp--;
+    if (ctx->cf_stack[ctx->cf_sp].type != CF_DO) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "LOOP without matching DO");
+        return;
+    }
+    
+    /* If we were skipping, stop now */
+    if (ctx->skip_mode) {
+        ctx->skip_mode = false;
+        ctx->skip_depth = 0;
+        ctx->loop_sp--;
+        ctx->do_loop_sp--;
+        return;
+    }
+    
+    /* Check DO/LOOP stack */
+    if (ctx->do_loop_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "LOOP without matching DO");
+        return;
+    }
+    
+    /* Increment index */
+    ctx->loop_index[ctx->do_loop_sp - 1]++;
+    
+    /* Check if loop should continue */
+    if (ctx->loop_index[ctx->do_loop_sp - 1] < ctx->loop_limit[ctx->do_loop_sp - 1]) {
+        /* Continue loop - restore parser position */
+        int loop_pos = ctx->cf_stack[ctx->cf_sp].address;
+        ctx->parser->current = ctx->loop_start[loop_pos];
+        
+        /* Push DO back onto control flow stack for next iteration */
+        ctx->cf_stack[ctx->cf_sp].type = CF_DO;
+        ctx->cf_stack[ctx->cf_sp].address = loop_pos;
+        ctx->cf_sp++;
+    } else {
+        /* Exit loop - pop stacks */
+        ctx->loop_sp--;
+        ctx->do_loop_sp--;
+    }
+}
+
+static void builtin_plus_loop(rforth_ctx_t *ctx) {
+    /* +LOOP - End counted loop, increment by n ( n -- ) */
+    
+    /* If we're skipping and this is nested, just decrement depth */
+    if (ctx->skip_mode && ctx->skip_depth > 1) {
+        ctx->skip_depth--;
+        return;
+    }
+    
+    /* Check control flow stack */
+    if (ctx->cf_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "+LOOP without matching DO");
+        return;
+    }
+    
+    ctx->cf_sp--;
+    if (ctx->cf_stack[ctx->cf_sp].type != CF_DO) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "+LOOP without matching DO");
+        return;
+    }
+    
+    /* If we were skipping, stop now */
+    if (ctx->skip_mode) {
+        ctx->skip_mode = false;
+        ctx->skip_depth = 0;
+        ctx->loop_sp--;
+        ctx->do_loop_sp--;
+        return;
+    }
+    
+    /* Pop increment from data stack */
+    cell_t increment;
+    if (!stack_pop(ctx->data_stack, &increment)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "+LOOP requires increment on stack");
+        return;
+    }
+    
+    /* Check DO/LOOP stack */
+    if (ctx->do_loop_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "+LOOP without matching DO");
+        return;
+    }
+    
+    /* Add increment to index */
+    int64_t inc = (increment.type == CELL_INT) ? increment.value.i : (int64_t)increment.value.f;
+    ctx->loop_index[ctx->do_loop_sp - 1] += inc;
+    
+    /* Check if loop should continue (handle both positive and negative increments) */
+    bool continue_loop = false;
+    if (inc >= 0) {
+        continue_loop = (ctx->loop_index[ctx->do_loop_sp - 1] < ctx->loop_limit[ctx->do_loop_sp - 1]);
+    } else {
+        continue_loop = (ctx->loop_index[ctx->do_loop_sp - 1] >= ctx->loop_limit[ctx->do_loop_sp - 1]);
+    }
+    
+    if (continue_loop) {
+        /* Continue loop - restore parser position */
+        int loop_pos = ctx->cf_stack[ctx->cf_sp].address;
+        ctx->parser->current = ctx->loop_start[loop_pos];
+        
+        /* Push DO back onto control flow stack for next iteration */
+        ctx->cf_stack[ctx->cf_sp].type = CF_DO;
+        ctx->cf_stack[ctx->cf_sp].address = loop_pos;
+        ctx->cf_sp++;
+    } else {
+        /* Exit loop - pop stacks */
+        ctx->loop_sp--;
+        ctx->do_loop_sp--;
+    }
+}
+
+static void builtin_leave(rforth_ctx_t *ctx) {
+    /* LEAVE - Exit current DO/LOOP immediately */
+    
+    /* Check if we're in a DO/LOOP */
+    if (ctx->do_loop_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "LEAVE without matching DO");
+        return;
+    }
+    
+    /* Find and remove the DO from control flow stack */
+    for (int i = ctx->cf_sp - 1; i >= 0; i--) {
+        if (ctx->cf_stack[i].type == CF_DO) {
+            /* Remove this entry and all after it */
+            ctx->cf_sp = i;
+            break;
+        }
+    }
+    
+    /* Pop DO/LOOP stacks */
+    ctx->loop_sp--;
+    ctx->do_loop_sp--;
+    
+    /* Set skip mode to skip until LOOP or +LOOP */
+    ctx->skip_mode = true;
+    ctx->skip_depth = 1;
+}
+
+static void builtin_i(rforth_ctx_t *ctx) {
+    /* I - Push current loop index */
+    if (ctx->do_loop_sp <= 0) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "I outside of DO/LOOP");
+        return;
+    }
+    
+    stack_push_int(ctx->data_stack, ctx->loop_index[ctx->do_loop_sp - 1]);
+}
+
+static void builtin_j(rforth_ctx_t *ctx) {
+    /* J - Push outer loop index */
+    if (ctx->do_loop_sp < 2) {
+        set_error_simple(ctx, RFORTH_ERROR_CONTROL_FLOW, "J outside of nested DO/LOOP");
+        return;
+    }
+    
+    stack_push_int(ctx->data_stack, ctx->loop_index[ctx->do_loop_sp - 2]);
+}
+
+/* Character I/O operations */
+static void builtin_key(rforth_ctx_t *ctx) {
+    /* KEY - Read one character from input ( -- char ) */
+    int ch = getchar();
+    if (ch == EOF) {
+        ch = 0;  /* Return 0 for EOF */
+    }
+    stack_push_int(ctx->data_stack, ch);
+}
+
+static void builtin_key_question(rforth_ctx_t *ctx) {
+    /* KEY? - Check if character input is available ( -- flag ) */
+    /* This is a simplified implementation - always returns true for now */
+    /* In a real implementation, this would check stdin for available input */
+    stack_push_int(ctx->data_stack, -1);  /* Always true for simplicity */
+}
+
+static void builtin_c_fetch(rforth_ctx_t *ctx) {
+    /* C@ - Fetch byte from address ( addr -- byte ) */
+    cell_t addr;
+    if (!stack_pop(ctx->data_stack, &addr)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "C@ requires address on stack");
+        return;
+    }
+    
+    if (addr.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "C@ requires integer address");
+        return;
+    }
+    
+    /* Safety check - don't access null or very low addresses */
+    if (addr.value.i < 1024) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "C@ invalid address");
+        return;
+    }
+    
+    /* Read byte from address */
+    unsigned char *ptr = (unsigned char *)(uintptr_t)addr.value.i;
+    unsigned char byte = *ptr;
+    
+    stack_push_int(ctx->data_stack, byte);
+}
+
+static void builtin_c_store(rforth_ctx_t *ctx) {
+    /* C! - Store byte to address ( byte addr -- ) */
+    cell_t addr, byte;
+    if (!stack_pop(ctx->data_stack, &addr) || !stack_pop(ctx->data_stack, &byte)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "C! requires byte and address on stack");
+        return;
+    }
+    
+    if (addr.type != CELL_INT || byte.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "C! requires integer operands");
+        return;
+    }
+    
+    /* Safety check - don't access null or very low addresses */
+    if (addr.value.i < 1024) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "C! invalid address");
+        return;
+    }
+    
+    /* Store byte to address */
+    unsigned char *ptr = (unsigned char *)(uintptr_t)addr.value.i;
+    *ptr = (unsigned char)(byte.value.i & 0xFF);
+}
+
+/* Advanced mathematics */
+static void builtin_star_slash(rforth_ctx_t *ctx) {
+    /* STAR-SLASH - Mixed precision multiply and divide ( n1 n2 n3 -- n1*n2/n3 ) */
+    cell_t n3, n2, n1;
+    if (!stack_pop(ctx->data_stack, &n3) || !stack_pop(ctx->data_stack, &n2) || !stack_pop(ctx->data_stack, &n1)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "*/ requires three values on stack");
+        return;
+    }
+    
+    if (n1.type != CELL_INT || n2.type != CELL_INT || n3.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "*/ requires integer operands");
+        return;
+    }
+    
+    if (n3.value.i == 0) {
+        set_error_simple(ctx, RFORTH_ERROR_DIVISION_BY_ZERO, "*/ division by zero");
+        return;
+    }
+    
+    /* Use 64-bit intermediate to avoid overflow */
+    int64_t intermediate = (int64_t)n1.value.i * (int64_t)n2.value.i;
+    int64_t result = intermediate / n3.value.i;
+    
+    stack_push_int(ctx->data_stack, result);
+}
+
+static void builtin_star_slash_mod(rforth_ctx_t *ctx) {
+    /* STAR-SLASH-MOD - Mixed precision multiply and divide with remainder ( n1 n2 n3 -- remainder quotient ) */
+    cell_t n3, n2, n1;
+    if (!stack_pop(ctx->data_stack, &n3) || !stack_pop(ctx->data_stack, &n2) || !stack_pop(ctx->data_stack, &n1)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "*/MOD requires three values on stack");
+        return;
+    }
+    
+    if (n1.type != CELL_INT || n2.type != CELL_INT || n3.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "*/MOD requires integer operands");
+        return;
+    }
+    
+    if (n3.value.i == 0) {
+        set_error_simple(ctx, RFORTH_ERROR_DIVISION_BY_ZERO, "*/MOD division by zero");
+        return;
+    }
+    
+    /* Use 64-bit intermediate to avoid overflow */
+    int64_t intermediate = (int64_t)n1.value.i * (int64_t)n2.value.i;
+    int64_t quotient = intermediate / n3.value.i;
+    int64_t remainder = intermediate % n3.value.i;
+    
+    stack_push_int(ctx->data_stack, remainder);
+    stack_push_int(ctx->data_stack, quotient);
+}
+
+static void builtin_fm_slash_mod(rforth_ctx_t *ctx) {
+    /* FM/MOD - Floored division and modulo ( d n -- remainder quotient ) */
+    /* This implements floored division where the remainder has the same sign as the divisor */
+    cell_t n, d_low;
+    if (!stack_pop(ctx->data_stack, &n) || !stack_pop(ctx->data_stack, &d_low)) {
+        set_error_simple(ctx, RFORTH_ERROR_STACK_UNDERFLOW, "FM/MOD requires dividend and divisor on stack");
+        return;
+    }
+    
+    if (d_low.type != CELL_INT || n.type != CELL_INT) {
+        set_error_simple(ctx, RFORTH_ERROR_TYPE_MISMATCH, "FM/MOD requires integer operands");
+        return;
+    }
+    
+    if (n.value.i == 0) {
+        set_error_simple(ctx, RFORTH_ERROR_DIVISION_BY_ZERO, "FM/MOD division by zero");
+        return;
+    }
+    
+    /* For simplicity, treating this as single-precision for now */
+    int64_t dividend = d_low.value.i;
+    int64_t divisor = n.value.i;
+    
+    int64_t quotient = dividend / divisor;
+    int64_t remainder = dividend % divisor;
+    
+    /* Implement floored division semantics */
+    if (remainder != 0 && ((dividend < 0) != (divisor < 0))) {
+        quotient--;
+        remainder += divisor;
+    }
+    
+    stack_push_int(ctx->data_stack, remainder);
+    stack_push_int(ctx->data_stack, quotient);
+}
+
 /* String operations */
 static void builtin_s_quote(rforth_ctx_t *ctx) {
     /* S" - Compile string literal ( -- addr len ) */
@@ -1054,6 +1449,9 @@ static const builtin_word_t builtin_words[] = {
     {"mod", builtin_mod},
     {"negate", builtin_negate},
     {"abs", builtin_abs},
+    {"*/", builtin_star_slash},
+    {"*/mod", builtin_star_slash_mod},
+    {"fm/mod", builtin_fm_slash_mod},
     
     /* Stack manipulation */
     {"dup", builtin_dup},
@@ -1067,6 +1465,10 @@ static const builtin_word_t builtin_words[] = {
     {"emit", builtin_emit},
     {"cr", builtin_cr},
     {"space", builtin_space},
+    {"key", builtin_key},
+    {"key?", builtin_key_question},
+    {"c@", builtin_c_fetch},
+    {"c!", builtin_c_store},
     
     /* Comparison */
     {"=", builtin_equal},
@@ -1102,6 +1504,12 @@ static const builtin_word_t builtin_words[] = {
     {"until", builtin_until},
     {"while", builtin_while},
     {"repeat", builtin_repeat},
+    {"do", builtin_do},
+    {"loop", builtin_loop},
+    {"+loop", builtin_plus_loop},
+    {"leave", builtin_leave},
+    {"i", builtin_i},
+    {"j", builtin_j},
     
     /* Variables */
     {"variable", builtin_variable},
