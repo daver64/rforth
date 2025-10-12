@@ -10,7 +10,8 @@ typedef struct rforth_ctx rforth_ctx_t;
 /* Compiler context */
 typedef struct {
     FILE *output;               /* Output C file */
-    dict_t *dict;              /* Dictionary for word lookup */
+    char *output_filename;      /* Output C filename */
+    char *executable_name;      /* Final executable name */
     int word_count;            /* Generated word counter */
     bool in_main;              /* Whether we're in main function */
 } compiler_ctx_t;

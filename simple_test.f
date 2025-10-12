@@ -1,3 +1,0 @@
-: SIMPLE 42 . ;
-SIMPLE
-43 .

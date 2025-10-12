@@ -356,11 +356,17 @@ int rforth_repl(rforth_ctx_t *ctx) {
 }
 
 int rforth_compile_file(rforth_ctx_t *ctx, const char *input_file, const char *output_file) {
-    /* Compilation not implemented yet */
-    (void)ctx;
-    (void)input_file;
-    (void)output_file;
+    (void)ctx; /* Context not needed for compilation */
     
-    fprintf(stderr, "Error: Compilation not implemented yet\n");
-    return -1;
+    if (!input_file || !output_file) {
+        fprintf(stderr, "Error: Input and output files required\n");
+        return -1;
+    }
+    
+    /* Use the compiler to generate C code and compile it */
+    if (compile_forth_to_c(input_file, output_file)) {
+        return 0;
+    } else {
+        return -1;
+    }
 }
