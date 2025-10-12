@@ -10,11 +10,11 @@ More complex Forth programs demonstrating algorithms and advanced programming te
 
 ## Concepts Demonstrated
 
-- Hyphenated word names (`ADD-ONE`, `TIMES-TWO`)
+- Hyphenated word names (`add-one`, `times-two`)
 - Function composition and chaining
 - Stack manipulation for data processing
 - Multiple word definitions in one file
 
 ## Notes
 
-The `fibonacci.f` example specifically tests the compiler's ability to handle hyphenated identifiers by converting them to valid C identifiers (e.g., `ADD-ONE` becomes `word_add_one`).
+The `fibonacci.f` example specifically tests the compiler's ability to handle hyphenated identifiers by converting them to valid C identifiers (e.g., `add-one` becomes `word_add_one`).

@@ -1,8 +1,8 @@
-: DEMO
+: demo
     5 3 + .
-    CR
-    10 DUP * .
-    CR
+    cr
+    10 dup * .
+    cr
 ;
 
-DEMO
+demo

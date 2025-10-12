@@ -1,28 +1,28 @@
 ( Hello World program in RForth )
 
-: HELLO 
-    72 EMIT
-    101 EMIT
-    108 EMIT
-    108 EMIT
-    111 EMIT
-    32 EMIT
-    87 EMIT
-    111 EMIT
-    114 EMIT
-    108 EMIT
-    100 EMIT
-    33 EMIT
-    CR
+: hello 
+    72 emit
+    101 emit
+    108 emit
+    108 emit
+    111 emit
+    32 emit
+    87 emit
+    111 emit
+    114 emit
+    108 emit
+    100 emit
+    33 emit
+    cr
 ;
 
-: DEMO
+: demo
     5 3 + .
-    CR
-    10 DUP * .
-    CR
+    cr
+    10 dup * .
+    cr
 ;
 
 ( Run the demo )
-HELLO
-DEMO
+hello
+demo

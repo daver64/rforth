@@ -43,15 +43,15 @@ static void generate_word_call(FILE *output, const char *word_name) {
         fprintf(output, "    { int64_t b = pop(), a = pop(); push(a / b); }\n");
     } else if (strcmp(word_name, ".") == 0) {
         fprintf(output, "    forth_dot();\n");
-    } else if (strcmp(word_name, "EMIT") == 0) {
+    } else if (strcmp(word_name, "emit") == 0) {
         fprintf(output, "    forth_emit();\n");
-    } else if (strcmp(word_name, "CR") == 0) {
+    } else if (strcmp(word_name, "cr") == 0) {
         fprintf(output, "    forth_cr();\n");
-    } else if (strcmp(word_name, "DUP") == 0) {
+    } else if (strcmp(word_name, "dup") == 0) {
         fprintf(output, "    forth_dup();\n");
-    } else if (strcmp(word_name, "DROP") == 0) {
+    } else if (strcmp(word_name, "drop") == 0) {
         fprintf(output, "    forth_drop();\n");
-    } else if (strcmp(word_name, "SWAP") == 0) {
+    } else if (strcmp(word_name, "swap") == 0) {
         fprintf(output, "    forth_swap();\n");
     } else {
         /* Assume it's a user word */

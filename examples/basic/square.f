@@ -1,5 +1,5 @@
-: SQUARE DUP * ;
+: square dup * ;
 
-5 SQUARE .
-7 SQUARE .
-CR
+5 square .
+7 square .
+cr

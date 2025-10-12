@@ -14,9 +14,9 @@ Simple examples demonstrating fundamental Forth concepts and syntax.
 ## Concepts Demonstrated
 
 - Basic arithmetic operations (`+`, `*`)
-- Stack manipulation (`DUP`)
-- Character output with `EMIT`
-- Line breaks with `CR`
+- Stack manipulation (`dup`)
+- Character output with `emit`
+- Line breaks with `cr`
 - Number output with `.`
-- User-defined words with `: WORD ... ;` syntax
+- User-defined words with `: word ... ;` syntax
 - Comments with `( ... )`

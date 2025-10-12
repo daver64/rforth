@@ -1,7 +1,7 @@
-: ADD-ONE 1 + ;
-: TIMES-TWO 2 * ;
-: PROCESS DUP ADD-ONE TIMES-TWO ;
+: add-one 1 + ;
+: times-two 2 * ;
+: process dup add-one times-two ;
 
-10 PROCESS . 
-5 PROCESS .
-CR
+10 process . 
+5 process .
+cr

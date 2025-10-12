@@ -40,21 +40,21 @@ static const builtin_word_t builtin_words[] = {
     {"-", builtin_sub},
     {"*", builtin_mul},
     {"/", builtin_div},
-    {"MOD", builtin_mod},
-    {"NEGATE", builtin_negate},
+    {"mod", builtin_mod},
+    {"negate", builtin_negate},
     
     /* Stack manipulation */
-    {"DUP", builtin_dup},
-    {"DROP", builtin_drop},
-    {"SWAP", builtin_swap},
-    {"OVER", builtin_over},
-    {"ROT", builtin_rot},
+    {"dup", builtin_dup},
+    {"drop", builtin_drop},
+    {"swap", builtin_swap},
+    {"over", builtin_over},
+    {"rot", builtin_rot},
     
     /* I/O */
     {".", builtin_dot},
-    {"EMIT", builtin_emit},
-    {"CR", builtin_cr},
-    {"SPACE", builtin_space},
+    {"emit", builtin_emit},
+    {"cr", builtin_cr},
+    {"space", builtin_space},
     
     /* Comparison */
     {"=", builtin_equal},
@@ -62,15 +62,15 @@ static const builtin_word_t builtin_words[] = {
     {">", builtin_greater},
     
     /* Logic */
-    {"AND", builtin_and},
-    {"OR", builtin_or},
-    {"NOT", builtin_not},
+    {"and", builtin_and},
+    {"or", builtin_or},
+    {"not", builtin_not},
     
     /* System */
-    {".S", builtin_dot_s},
-    {"WORDS", builtin_words_cmd},
-    {"BYE", builtin_bye},
-    {"TURNKEY", builtin_turnkey},
+    {".s", builtin_dot_s},
+    {"words", builtin_words_cmd},
+    {"bye", builtin_bye},
+    {"turnkey", builtin_turnkey},
     
     /* End marker */
     {NULL, NULL}

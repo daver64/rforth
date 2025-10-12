@@ -39,10 +39,11 @@ This directory contains example Forth programs demonstrating various features of
 # Then type Forth code interactively
 RForth> 5 3 + .
 8 ok
-RForth> : SQUARE DUP * ;
+RForth> : square dup * ;
 ok
-RForth> 7 SQUARE .
+RForth> 7 square .
 49 ok
+RForth> bye
 ```
 
 ## Quick Test

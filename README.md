@@ -44,11 +44,11 @@ The executable will be created at `bin/rforth`.
 ```forth
 RForth> 5 3 + .
 8 ok
-RForth> : SQUARE DUP * ;
+RForth> : square dup * ;
 ok  
-RForth> 7 SQUARE .
+RForth> 7 square .
 49 ok
-RForth> quit
+RForth> bye
 ```
 
 #### Interpret Mode
@@ -90,24 +90,24 @@ The `examples/` directory contains sample Forth programs:
 
 ### Data Types
 - **Integers**: 64-bit signed integers
-- **Strings**: Character sequences via `EMIT`
+- **Strings**: Character sequences via `emit`
 
 ### Stack Operations
-- `DUP` - Duplicate top of stack
-- `DROP` - Remove top of stack  
-- `SWAP` - Exchange top two items
+- `dup` - Duplicate top of stack
+- `drop` - Remove top of stack  
+- `swap` - Exchange top two items
 
 ### Arithmetic
 - `+` `-` `*` `/` - Basic arithmetic operations
 
 ### I/O Operations
 - `.` - Print top of stack as number
-- `EMIT` - Print top of stack as ASCII character
-- `CR` - Print carriage return
+- `emit` - Print top of stack as ASCII character
+- `cr` - Print carriage return
 
 ### Word Definition
 ```forth
-: WORD-NAME
+: word-name
     ( word definition here )
 ;
 ```
