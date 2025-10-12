@@ -14,6 +14,10 @@ typedef struct {
     char *executable_name;      /* Final executable name */
     int word_count;            /* Generated word counter */
     bool in_main;              /* Whether we're in main function */
+    int control_depth;         /* Nesting depth for control structures */
+    int label_counter;         /* Counter for generating unique labels */
+    int if_stack[64];          /* Stack to track nested if statements */
+    int if_depth;              /* Current if nesting depth */
 } compiler_ctx_t;
 
 /* Code generation functions */

@@ -12,6 +12,10 @@ struct compiler_ctx {
     char *executable_name;      /* Final executable name */
     int word_count;            /* Generated word counter */
     bool in_main;              /* Whether we're in main function */
+    int control_depth;         /* Nesting depth for control structures */
+    int label_counter;         /* Counter for generating unique labels */
+    int if_stack[64];          /* Stack to track nested if statements */
+    int if_depth;              /* Current if nesting depth */
 };
 
 /* Helper function to convert Forth word name to C identifier */
@@ -32,7 +36,9 @@ static void word_name_to_c_identifier(const char *forth_name, char *c_name, size
 }
 
 /* Helper function to generate word call code */
-static void generate_word_call(FILE *output, const char *word_name) {
+static void generate_word_call(compiler_ctx_t *compiler, const char *word_name) {
+    FILE *output = compiler->output;
+    
     /* Arithmetic Operations */
     if (strcmp(word_name, "+") == 0) {
         fprintf(output, "    forth_add();\n");
@@ -106,6 +112,10 @@ static void generate_word_call(FILE *output, const char *word_name) {
         fprintf(output, "    forth_xor();\n");
     } else if (strcmp(word_name, "invert") == 0) {
         fprintf(output, "    forth_invert();\n");
+    } else if (strcmp(word_name, "lshift") == 0) {
+        fprintf(output, "    { int64_t n = pop(), val = pop(); push(val << n); }\n");
+    } else if (strcmp(word_name, "rshift") == 0) {
+        fprintf(output, "    { int64_t n = pop(), val = pop(); push(val >> n); }\n");
         
     /* I/O Operations */
     } else if (strcmp(word_name, ".") == 0) {
@@ -127,13 +137,25 @@ static void generate_word_call(FILE *output, const char *word_name) {
     } else if (strcmp(word_name, "char+") == 0) {
         fprintf(output, "    push(pop() + 1);\n");
         
-    /* Control Flow - simplified for now */
+    /* Control Flow */
     } else if (strcmp(word_name, "if") == 0) {
-        fprintf(output, "    if (pop()) {\n");
+        /* Generate label-based control flow */
+        int label = ++compiler->label_counter;
+        compiler->if_stack[compiler->if_depth++] = label;
+        fprintf(output, "    if (!pop()) goto endif_%d;\n", label);
     } else if (strcmp(word_name, "else") == 0) {
-        fprintf(output, "    } else {\n");
+        if (compiler->if_depth > 0) {
+            int else_label = ++compiler->label_counter;
+            int if_label = compiler->if_stack[compiler->if_depth - 1];
+            compiler->if_stack[compiler->if_depth - 1] = else_label; /* Update for endif */
+            fprintf(output, "    goto endif_%d;\n", else_label);
+            fprintf(output, "endif_%d: /* else clause */\n", if_label);
+        }
     } else if (strcmp(word_name, "then") == 0) {
-        fprintf(output, "    }\n");
+        if (compiler->if_depth > 0) {
+            int label = compiler->if_stack[--compiler->if_depth];
+            fprintf(output, "endif_%d:\n", label);
+        }
         
     /* Special words */
     } else if (strcmp(word_name, "bye") == 0) {
@@ -186,6 +208,9 @@ compiler_ctx_t* compiler_create(const char *output_file) {
     
     compiler->word_count = 0;
     compiler->in_main = false;
+    compiler->control_depth = 0;
+    compiler->label_counter = 0;
+    compiler->if_depth = 0;
     
     return compiler;
 }
@@ -409,7 +434,7 @@ bool compiler_generate_word(compiler_ctx_t *compiler, const char *name, const ch
                 break;
                 
             case TOKEN_WORD:
-                generate_word_call(compiler->output, token.text);
+                generate_word_call(compiler, token.text);
                 break;
                 
             default:
@@ -445,13 +470,31 @@ bool compiler_generate_main(compiler_ctx_t *compiler, const char *main_code) {
             case TOKEN_WORD:
                 /* Handle special words that expect strings */
                 if (strcmp(token.text, ".\"") == 0) {
-                    /* Parse the string that follows */
-                    token_t str_token = parser_next_token(parser);
-                    if (str_token.type == TOKEN_STRING) {
-                        fprintf(compiler->output, "    printf(\"%s\");\n", str_token.text);
+                    /* Manually parse the string content until closing quote */
+                    const char *current = parser->current;
+                    
+                    /* Skip whitespace */
+                    while (*current && isspace(*current)) current++;
+                    
+                    if (*current) {
+                        const char *start = current;
+                        const char *end = strchr(start, '"');
+                        if (end) {
+                            /* Extract the string content */
+                            size_t len = end - start;
+                            char string_content[1024];
+                            if (len < sizeof(string_content) - 1) {
+                                strncpy(string_content, start, len);
+                                string_content[len] = '\0';
+                                fprintf(compiler->output, "    printf(\"%s\");\n", string_content);
+                                
+                                /* Advance parser past the closing quote */
+                                parser->current = end + 1;
+                            }
+                        }
                     }
                 } else {
-                    generate_word_call(compiler->output, token.text);
+                    generate_word_call(compiler, token.text);
                 }
                 break;
                 
@@ -464,6 +507,12 @@ bool compiler_generate_main(compiler_ctx_t *compiler, const char *main_code) {
                 /* Skip other tokens */
                 break;
         }
+    }
+    
+    /* Close any remaining open control structures */
+    while (compiler->if_depth > 0) {
+        int label = compiler->if_stack[--compiler->if_depth];
+        fprintf(compiler->output, "endif_%d:\n", label);
     }
     
     fprintf(compiler->output, "\n    return 0;\n");
