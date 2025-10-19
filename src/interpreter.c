@@ -138,7 +138,7 @@ static rforth_error_t interpret_token(rforth_ctx_t *ctx, token_t *token) {
     switch (token->type) {
         case TOKEN_NUMBER:
             /* Push integer onto stack */
-            if (!stack_push_int(ctx->data_stack, token->number)) {
+            if (!stack_push_int(ctx->data_stack, token->value.number)) {
                 RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Stack overflow pushing number");
                 return RFORTH_ERROR_STACK_OVERFLOW;
             }
@@ -146,7 +146,7 @@ static rforth_error_t interpret_token(rforth_ctx_t *ctx, token_t *token) {
             
         case TOKEN_FLOAT:
             /* Push floating point value onto stack */
-            if (!stack_push_float(ctx->data_stack, token->float_val)) {
+            if (!stack_push_float(ctx->data_stack, token->value.float_val)) {
                 RFORTH_SET_ERROR(ctx, RFORTH_ERROR_STACK_OVERFLOW, "Stack overflow pushing float");
                 return RFORTH_ERROR_STACK_OVERFLOW;
             }
@@ -292,7 +292,7 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
             char number_str[MAX_NUMBER_STRING_LENGTH];
             
             if (token.type == TOKEN_NUMBER) {
-                snprintf(number_str, sizeof(number_str), "%ld", (long)token.number);
+                snprintf(number_str, sizeof(number_str), "%ld", (long)token.value.number);
                 token_text = number_str;
             } else if (token.type == TOKEN_WORD) {
                 token_text = token.text;
@@ -303,7 +303,7 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
             }
             
             /* Check if we need to expand buffer */
-            int needed = compile_buffer_pos + strlen(token_text) + 2; /* +2 for space and null */
+            int needed = compile_buffer_pos + (int)strlen(token_text) + 2; /* +2 for space and null */
             if (needed > compile_buffer_size) {
                 compile_buffer_size = needed * 2;
                 char *new_buffer = realloc(compile_buffer, compile_buffer_size);
@@ -320,7 +320,7 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
                 compile_buffer_pos++;
             }
             strncat(compile_buffer, token_text, compile_buffer_size - compile_buffer_pos - 1);
-            compile_buffer_pos += strlen(token_text);
+            compile_buffer_pos += (int)strlen(token_text);
             
         } else {
             /* Interpreting mode - execute token */

@@ -28,7 +28,6 @@
 
 /* File Extensions */
 #define C_FILE_EXTENSION ".c"
-#define EXECUTABLE_EXTENSION ""
 
 /* Compiler Configuration */
 #define DEFAULT_COMPILER "gcc"

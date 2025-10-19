@@ -49,7 +49,7 @@ typedef struct {
     union {
         int64_t number;     /* For integer tokens */
         double float_val;   /* For floating point tokens */
-    };
+    } value;
     int line, col;      /* Position in source */
 } token_t;
 

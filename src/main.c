@@ -1,47 +1,68 @@
 #include "rforth.h"
-#include <getopt.h>
 
 /* Function prototypes */
 static void print_usage(const char *program_name);
 static void print_version(void);
 
 int main(int argc, char *argv[]) {
-    int opt;
     bool repl_mode = false;
     bool compile_mode = false;
     char *input_file = NULL;
     char *output_file = NULL;
     
-    /* Parse command line options */
-    while ((opt = getopt(argc, argv, "hvrci:o:")) != -1) {
-        switch (opt) {
-            case 'h':
-                print_usage(argv[0]);
-                return 0;
-            case 'v':
-                print_version();
-                return 0;
-            case 'r':
-                repl_mode = true;
-                break;
-            case 'c':
-                compile_mode = true;
-                break;
-            case 'i':
-                input_file = optarg;
-                break;
-            case 'o':
-                output_file = optarg;
-                break;
-            default:
-                print_usage(argv[0]);
-                return 1;
+    /* Parse command line options - Windows style */
+    for (int i = 1; i < argc; i++) {
+        char *arg = argv[i];
+        
+        /* Check for option flags (- or /) */
+        if (arg[0] == '-' || arg[0] == '/') {
+            char flag = arg[1];
+            
+            switch (flag) {
+                case 'h':
+                case '?':
+                    print_usage(argv[0]);
+                    return 0;
+                case 'v':
+                    print_version();
+                    return 0;
+                case 'r':
+                    repl_mode = true;
+                    break;
+                case 'c':
+                    compile_mode = true;
+                    break;
+                case 'i':
+                    /* Next argument is input file */
+                    if (i + 1 < argc) {
+                        input_file = argv[++i];
+                    } else {
+                        fprintf(stderr, "Error: -i requires a filename\n");
+                        print_usage(argv[0]);
+                        return 1;
+                    }
+                    break;
+                case 'o':
+                    /* Next argument is output file */
+                    if (i + 1 < argc) {
+                        output_file = argv[++i];
+                    } else {
+                        fprintf(stderr, "Error: -o requires a filename\n");
+                        print_usage(argv[0]);
+                        return 1;
+                    }
+                    break;
+                default:
+                    fprintf(stderr, "Error: Unknown option -%c\n", flag);
+                    print_usage(argv[0]);
+                    return 1;
+            }
+        } else {
+            /* Non-option argument - treat as input file if not already set */
+            if (!input_file) {
+                input_file = arg;
+            }
         }
-    }
-    
-    /* Handle remaining arguments */
-    if (optind < argc && !input_file) {
-        input_file = argv[optind];
     }
     
     /* Initialize I/O system */

@@ -264,10 +264,10 @@ token_t parser_next_token(parser_t *parser) {
     
     if (parser_is_float(token.text, &float_value)) {
         token.type = TOKEN_FLOAT;
-        token.float_val = float_value;
+        token.value.float_val = float_value;
     } else if (parser_is_number(token.text, &number_value)) {
         token.type = TOKEN_NUMBER;
-        token.number = number_value;
+        token.value.number = number_value;
     } else {
         token.type = TOKEN_WORD;
     }

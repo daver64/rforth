@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#include <unistd.h>
+#ifndef _WIN32
+    #include <unistd.h>
+#endif
 
 /* Global I/O context */
 io_ctx_t *g_io_ctx = NULL;

@@ -2,8 +2,12 @@
 #include "rforth.h"
 #include "config.h"
 #include <ctype.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#ifndef _WIN32
+    #include <sys/wait.h>
+    #include <unistd.h>
+#else
+    #include <process.h>  /* For _spawnvp on Windows */
+#endif
 
 /* Compiler context implementation */
 struct compiler_ctx {
@@ -27,7 +31,7 @@ static void word_name_to_c_identifier(const char *forth_name, char *c_name, size
         if (forth_name[i] == '-') {
             c_name[j++] = '_';
         } else if (isalnum(forth_name[i])) {
-            c_name[j++] = tolower(forth_name[i]);
+            c_name[j++] = (char)tolower(forth_name[i]);
         }
         /* Skip other characters */
         i++;
@@ -430,7 +434,7 @@ bool compiler_generate_word(compiler_ctx_t *compiler, const char *name, const ch
     while ((token = parser_next_token(parser)).type != TOKEN_EOF) {
         switch (token.type) {
             case TOKEN_NUMBER:
-                fprintf(compiler->output, "    push(%ld);\n", (long)token.number);
+                fprintf(compiler->output, "    push(%ld);\n", (long)token.value.number);
                 break;
                 
             case TOKEN_WORD:
@@ -464,7 +468,7 @@ bool compiler_generate_main(compiler_ctx_t *compiler, const char *main_code) {
     while ((token = parser_next_token(parser)).type != TOKEN_EOF) {
         switch (token.type) {
             case TOKEN_NUMBER:
-                fprintf(compiler->output, "    push(%ld);\n", (long)token.number);
+                fprintf(compiler->output, "    push(%ld);\n", (long)token.value.number);
                 break;
                 
             case TOKEN_WORD:
@@ -609,14 +613,14 @@ bool compile_forth_to_c(const char *input_file, const char *output_file) {
                 char number_str[MAX_NUMBER_STRING_LENGTH];
                 
                 if (token.type == TOKEN_NUMBER) {
-                    snprintf(number_str, sizeof(number_str), "%ld", (long)token.number);
+                    snprintf(number_str, sizeof(number_str), "%ld", (long)token.value.number);
                     token_text = number_str;
                 } else if (token.type == TOKEN_WORD) {
                     token_text = token.text;
                 }
                 
                 if (token_text) {
-                    int len = strlen(token_text);
+                    int len = (int)strlen(token_text);
                     if (def_pos + len < (int)(sizeof(definition) - 1)) {
                         strcpy(definition + def_pos, token_text);
                         def_pos += len;
@@ -657,14 +661,14 @@ bool compile_forth_to_c(const char *input_file, const char *output_file) {
             char number_str[MAX_NUMBER_STRING_LENGTH];
             
             if (token.type == TOKEN_NUMBER) {
-                snprintf(number_str, sizeof(number_str), "%ld", (long)token.number);
+                snprintf(number_str, sizeof(number_str), "%ld", (long)token.value.number);
                 token_text = number_str;
             } else if (token.type == TOKEN_WORD) {
                 token_text = token.text;
             }
             
             if (token_text) {
-                int len = strlen(token_text);
+                int len = (int)strlen(token_text);
                 if (main_pos + len < (int)(sizeof(main_code) - 1)) {
                     strcpy(main_code + main_pos, token_text);
                     main_pos += len;
@@ -722,7 +726,31 @@ bool invoke_c_compiler(const char *c_file, const char *output_file) {
         return false;
     }
     
-    /* Fork and exec gcc safely */
+#ifdef _WIN32
+    /* Windows process creation */
+    char *args[] = {
+        "cl.exe",
+        "/O2",
+        "/Fe:",
+        (char*)output_file,
+        (char*)c_file,
+        NULL
+    };
+    
+    /* Build command string for Windows */
+    char command[1024];
+    snprintf(command, sizeof(command), "cl.exe /O2 /Fe:\"%s\" \"%s\"", 
+             output_file, c_file);
+    
+    int result = system(command);
+    if (result == 0) {
+        return true;
+    } else {
+        fprintf(stderr, "cl.exe compilation failed (exit code: %d)\n", result);
+        return false;
+    }
+#else
+    /* Unix fork and exec gcc safely */
     pid_t pid = fork();
     if (pid == -1) {
         fprintf(stderr, "Error: Failed to fork process\n");
@@ -760,4 +788,5 @@ bool invoke_c_compiler(const char *c_file, const char *output_file) {
             return false;
         }
     }
+#endif
 }

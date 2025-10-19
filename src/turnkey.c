@@ -5,9 +5,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
 #include <ctype.h>
+#ifndef _WIN32
+    #include <sys/wait.h>
+    #include <unistd.h>
+#else
+    #include <process.h>
+#endif
 
 /* Helper function to convert Forth word name to C identifier */
 static void word_name_to_c_identifier(const char *forth_name, char *c_name, size_t size) {
@@ -18,7 +22,7 @@ static void word_name_to_c_identifier(const char *forth_name, char *c_name, size
         if (forth_name[i] == '-') {
             c_name[j++] = '_';
         } else if (isalnum(forth_name[i])) {
-            c_name[j++] = tolower(forth_name[i]);
+            c_name[j++] = (char)tolower(forth_name[i]);
         }
         /* Skip other characters */
         i++;
@@ -169,12 +173,26 @@ bool turnkey_create_executable(rforth_ctx_t *ctx, const char *output_file) {
     fclose(c_file);
     
     /* Compile the C file */
+#ifdef _WIN32
+    /* Use cl.exe on Windows to compile the generated C file */
+    char command[1024];
+    snprintf(command, sizeof(command), "cl.exe /O2 /Fe:\"%s\" \"%s\"", output_file, c_filename);
+    int result = system(command);
+    if (result == 0) {
+        io_printf("TURNKEY executable '%s' created successfully.\n", output_file);
+        io_printf("Generated C code saved as: %s\n", c_filename);
+        return true;
+    } else {
+        io_error_string("cl.exe compilation failed\n");
+        return false;
+    }
+#else
     pid_t pid = fork();
     if (pid == -1) {
         io_error_string("Error: Failed to fork for compilation\n");
         return false;
     }
-    
+
     if (pid == 0) {
         /* Child process - compile with gcc */
         char *args[] = {
@@ -185,7 +203,7 @@ bool turnkey_create_executable(rforth_ctx_t *ctx, const char *output_file) {
             c_filename,
             NULL
         };
-        
+
         execvp("gcc", args);
         io_error_string("Error: Failed to execute gcc\n");
         _exit(1);
@@ -196,7 +214,7 @@ bool turnkey_create_executable(rforth_ctx_t *ctx, const char *output_file) {
             io_error_string("Error: Failed to wait for gcc\n");
             return false;
         }
-        
+
         if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
             io_printf("TURNKEY executable '%s' created successfully.\n", output_file);
             io_printf("Generated C code saved as: %s\n", c_filename);
@@ -206,6 +224,7 @@ bool turnkey_create_executable(rforth_ctx_t *ctx, const char *output_file) {
             return false;
         }
     }
+#endif
 }
 
 void builtin_turnkey(rforth_ctx_t *ctx) {

@@ -19,8 +19,20 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
 include_directories(include)
 
 # Compiler flags
-set(CMAKE_C_FLAGS_DEBUG "-g -O0 -Wall -Wextra -DDEBUG")
-set(CMAKE_C_FLAGS_RELEASE "-O3 -Wall -Wextra -DNDEBUG")
+if(MSVC)
+    # Microsoft Visual C++ flags - remove default /W3 and set /W4
+    string(REGEX REPLACE "/W[0-4]" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    set(CMAKE_C_FLAGS_DEBUG "/Zi /Od /W4 /DDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /W4 /DNDEBUG")
+    # Disable specific warnings that are too verbose
+    add_compile_options(/wd4996)  # Disable deprecated function warnings
+    add_compile_options(/wd4100)  # Disable unreferenced parameter warnings
+    add_compile_options(/wd4189)  # Disable unreferenced local variable warnings
+else()
+    # GCC/Clang flags
+    set(CMAKE_C_FLAGS_DEBUG "-g -O0 -Wall -Wextra -DDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -Wall -Wextra -DNDEBUG")
+endif()
 
 # Source files
 set(RFORTH_SOURCES
@@ -38,6 +50,8 @@ set(RFORTH_SOURCES
     src/error.c
 )
 
+
+
 # Header files
 set(RFORTH_HEADERS
     include/rforth.h
@@ -52,7 +66,10 @@ set(RFORTH_HEADERS
 
 # Main executable
 add_executable(rforth ${RFORTH_SOURCES} ${RFORTH_HEADERS})
-target_link_libraries(rforth m)  # Link math library
+# Link math library (not needed on Windows/MSVC)
+if(NOT MSVC)
+    target_link_libraries(rforth m)
+endif()
 
 # Runtime library for compiled programs
 set(RUNTIME_SOURCES

@@ -4,6 +4,15 @@
 #include <math.h>
 #include <ctype.h>
 #include <string.h>
+#include <inttypes.h>
+#include <stdint.h>
+
+/* Portable format specifier for int64_t */
+#ifdef _WIN32
+    #define PRId64_PORTABLE "I64d"
+#else
+    #define PRId64_PORTABLE PRId64
+#endif
 
 /* Forward declarations */
 static void builtin_add(rforth_ctx_t *ctx);
@@ -826,7 +835,7 @@ static void builtin_until(rforth_ctx_t *ctx) {
         ctx->loop_sp--;
     } else {
         /* Continue loop - restore parser position */
-        int loop_index = ctx->cf_stack[ctx->cf_sp].address;
+        int loop_index = (int)ctx->cf_stack[ctx->cf_sp].address;
         ctx->parser->current = ctx->loop_start[loop_index];
         
         /* Push BEGIN back onto control flow stack for next iteration */
@@ -893,7 +902,7 @@ static void builtin_repeat(rforth_ctx_t *ctx) {
     }
     
     /* Loop back to BEGIN */
-    int loop_index = ctx->cf_stack[ctx->cf_sp].address;
+    int loop_index = (int)ctx->cf_stack[ctx->cf_sp].address;
     ctx->parser->current = ctx->loop_start[loop_index];
     
     /* Push BEGIN back onto control flow stack for next iteration */
@@ -992,7 +1001,7 @@ static void builtin_loop(rforth_ctx_t *ctx) {
     /* Check if loop should continue */
     if (ctx->loop_index[ctx->do_loop_sp - 1] < ctx->loop_limit[ctx->do_loop_sp - 1]) {
         /* Continue loop - restore parser position */
-        int loop_pos = ctx->cf_stack[ctx->cf_sp].address;
+        int loop_pos = (int)ctx->cf_stack[ctx->cf_sp].address;
         ctx->parser->current = ctx->loop_start[loop_pos];
         
         /* Push DO back onto control flow stack for next iteration */
@@ -1063,7 +1072,7 @@ static void builtin_plus_loop(rforth_ctx_t *ctx) {
     
     if (continue_loop) {
         /* Continue loop - restore parser position */
-        int loop_pos = ctx->cf_stack[ctx->cf_sp].address;
+        int loop_pos = (int)ctx->cf_stack[ctx->cf_sp].address;
         ctx->parser->current = ctx->loop_start[loop_pos];
         
         /* Push DO back onto control flow stack for next iteration */
@@ -1472,8 +1481,8 @@ static void builtin_s_quote(rforth_ctx_t *ctx) {
     string_buffer[len] = '\0';
     
     /* Push address and length */
-    stack_push_int(ctx->data_stack, (long)string_buffer);
-    stack_push_int(ctx->data_stack, (long)len);
+    stack_push_int(ctx->data_stack, (intptr_t)string_buffer);
+    stack_push_int(ctx->data_stack, (intptr_t)len);
     
     /* Advance input pointer past closing quote */
     ctx->parser->current = end + 1;
@@ -1561,8 +1570,8 @@ static void builtin_count(rforth_ctx_t *ctx) {
     const char *str_addr = (const char *)(cstr + 1);
     
     /* Push string address and length */
-    stack_push_int(ctx->data_stack, (long)str_addr);
-    stack_push_int(ctx->data_stack, (long)len);
+    stack_push_int(ctx->data_stack, (intptr_t)str_addr);
+    stack_push_int(ctx->data_stack, (intptr_t)len);
 }
 
 /* Memory operations */
@@ -1646,7 +1655,7 @@ static void builtin_question(rforth_ctx_t *ctx) {
     
     /* Print the value */
     if (var->value.type == CELL_INT) {
-        printf("%ld ", var->value.value.i);
+        printf("%" PRId64_PORTABLE " ", var->value.value.i);
     } else {
         printf("%g ", var->value.value.f);
     }
@@ -2290,7 +2299,7 @@ static void builtin_literal(rforth_ctx_t *ctx) {
     if (ctx->compiling) {
         printf("LITERAL - Compiling literal ");
         if (value.type == CELL_INT) {
-            printf("%ld", value.value.i);
+            printf("%" PRId64_PORTABLE, value.value.i);
         } else {
             printf("%g", value.value.f);
         }
@@ -2548,7 +2557,7 @@ static void builtin_word(rforth_ctx_t *ctx) {
         return;
     }
     
-    printf("WORD - Parse word with delimiter %ld (simplified)\n", delim.value.i);
+    printf("WORD - Parse word with delimiter %" PRId64_PORTABLE " (simplified)\n", delim.value.i);
     /* Return address of dummy counted string */
     static char dummy_word[] = "\x04test";
     stack_push_int(ctx->data_stack, (int64_t)dummy_word);
@@ -2607,7 +2616,7 @@ static void builtin_accept(rforth_ctx_t *ctx) {
         return;
     }
     
-    printf("ACCEPT - Input %ld characters (simplified)\n", count.value.i);
+    printf("ACCEPT - Input %" PRId64_PORTABLE " characters (simplified)\n", count.value.i);
     stack_push_int(ctx->data_stack, 0); /* Return 0 characters read */
 }
 
@@ -2669,7 +2678,7 @@ static void builtin_constant(rforth_ctx_t *ctx) {
         return;
     }
     
-    snprintf(var->name, sizeof(var->name), "const_%ld", name_cell.value.i);
+    snprintf(var->name, sizeof(var->name), "const_%" PRId64_PORTABLE, name_cell.value.i);
     var->value = value;
     var->next = ctx->variables;
     ctx->variables = var;
