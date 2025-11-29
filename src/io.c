@@ -6,6 +6,9 @@
 #include <stdarg.h>
 #ifndef _WIN32
     #include <unistd.h>
+    #include <sys/types.h>
+    #include <sys/time.h>
+    #include <sys/select.h>
 #endif
 
 /* Global I/O context */
@@ -24,8 +27,34 @@ static int terminal_read_char(void) {
 }
 
 static bool terminal_data_available(void) {
-    /* For terminal, we'll assume data is always available when requested */
+#ifndef _WIN32
+    /* Use select() to check whether there is data available on stdin.
+     * This performs a non-blocking check (timeout 0). On terminals in
+     * canonical mode input will typically be available only after a
+     * newline; that's expected behavior for line-buffered terminals.
+     */
+    int fd = fileno(stdin);
+    if (fd < 0) return false;
+
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(fd, &readfds);
+
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+
+    int r = select(fd + 1, &readfds, NULL, NULL, &tv);
+    if (r > 0) {
+        return FD_ISSET(fd, &readfds) != 0;
+    }
+    return false;
+#else
+    /* On Windows we keep the conservative behavior for now. If needed,
+     * a Win32 implementation using _kbhit() or other APIs can be added.
+     */
     return true;
+#endif
 }
 
 static void terminal_write_char(char c) {
