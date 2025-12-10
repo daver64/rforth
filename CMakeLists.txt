@@ -48,6 +48,8 @@ set(RFORTH_SOURCES
     src/io.c
     src/turnkey.c
     src/error.c
+    src/gpio_rpi.c
+    src/timing_rpi.c
 )
 
 
@@ -62,6 +64,9 @@ set(RFORTH_HEADERS
     include/io.h
     include/turnkey.h
     include/config.h
+    include/gpio_rpi.h
+    include/rpi_peripherals.h
+    include/timing_rpi.h
 )
 
 # Main executable
@@ -79,6 +84,8 @@ set(RUNTIME_SOURCES
     src/builtins.c
     src/io.c
     src/error.c
+    src/gpio_rpi.c
+    src/timing_rpi.c
 )
 
 add_library(rforth_runtime STATIC ${RUNTIME_SOURCES})

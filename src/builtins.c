@@ -1,5 +1,7 @@
 #include "rforth.h"
 #include "turnkey.h"
+#include "gpio_rpi.h"
+#include "timing_rpi.h"
 #include <stdio.h>
 #include <math.h>
 #include <ctype.h>
@@ -2887,6 +2889,36 @@ static const builtin_word_t builtin_words[] = {
     {"(", builtin_paren},
     {"[']", builtin_bracket_tick},
     {"[char]", builtin_bracket_char},
+    
+    /* Raspberry Pi GPIO Words */
+    {"gpio-init", builtin_gpio_init},
+    {"gpio-close", builtin_gpio_close},
+    {"gpio-output", builtin_gpio_output},
+    {"gpio-input", builtin_gpio_input},
+    {"gpio-alt0", builtin_gpio_alt0},
+    {"gpio-alt1", builtin_gpio_alt1},
+    {"gpio-alt2", builtin_gpio_alt2},
+    {"gpio-alt3", builtin_gpio_alt3},
+    {"gpio-alt4", builtin_gpio_alt4},
+    {"gpio-alt5", builtin_gpio_alt5},
+    {"gpio-pull-up", builtin_gpio_pull_up},
+    {"gpio-pull-down", builtin_gpio_pull_down},
+    {"gpio-pull-off", builtin_gpio_pull_off},
+    {"gpio-set", builtin_gpio_set},
+    {"gpio-clr", builtin_gpio_clr},
+    {"gpio-write", builtin_gpio_write},
+    {"gpio-read", builtin_gpio_read},
+    {"gpio-toggle", builtin_gpio_toggle},
+    {"gpio-mask-set", builtin_gpio_mask_set},
+    {"gpio-mask-clr", builtin_gpio_mask_clr},
+    {"gpio-mask-read", builtin_gpio_mask_read},
+    {"gpio-valid?", builtin_gpio_valid_q},
+    
+    /* Timing Words */
+    {"delay-ms", builtin_delay_ms},
+    {"delay-us", builtin_delay_us},
+    {"micros", builtin_micros},
+    {"millis", builtin_millis},
     
     /* End marker */
     {NULL, NULL}

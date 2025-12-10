@@ -39,6 +39,15 @@ This makes RForth **fully compatible** with all standard ANSI Forth Core program
   - Named variable system with proper dictionary integration
   - Support for both line comments (`\`) and block comments (`( ... )`)
 
+- **Raspberry Pi GPIO Support** 🍓:
+  - Direct hardware control for Raspberry Pi (Zero, Zero 2W, 1-4)
+  - Memory-mapped GPIO for fast I/O operations
+  - Pin configuration (input/output, pull-up/pull-down)
+  - Digital read/write operations
+  - Timing functions (delays, microsecond/millisecond counters)
+  - Complete set of GPIO Forth words
+  - See [GPIO Documentation](docs/GPIO.md) for details
+
 - **Advanced Compiler**:
   - Generates clean, readable C code
   - Handles hyphenated Forth identifiers (converts to valid C names)
@@ -108,6 +117,14 @@ The `examples/` directory contains sample Forth programs:
 
 - **[`algorithms/`](examples/algorithms/README.md)** - More complex programs
   - [`fibonacci.f`](examples/algorithms/fibonacci.f) - Demonstrates hyphenated word names and function composition
+
+- **[`rpi/`](examples/rpi/README.md)** 🍓 - Raspberry Pi GPIO examples
+  - [`blink.f`](examples/rpi/blink.f) - LED blink example
+  - [`button.f`](examples/rpi/button.f) - Button input controlling LED
+  - [`toggle.f`](examples/rpi/toggle.f) - Toggle LED state
+  - [`fade.f`](examples/rpi/fade.f) - Software PWM fade effect
+  - [`traffic.f`](examples/rpi/traffic.f) - Traffic light simulator
+  - [`morse.f`](examples/rpi/morse.f) - Morse code output
 
 ## Forth Language Support
 
