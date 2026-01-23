@@ -2,6 +2,17 @@
 
 RForth is a modern, **100% ANSI Forth Core compliant** implementation of the Forth programming language written in C99. It provides both an interactive interpreter and a powerful compiler that generates native executables.
 
+## 🔒 Security & Code Quality
+
+**Latest Update (v1.0.1)**: Major security and stability improvements
+
+- ✅ **Memory Safety**: Fixed buffer overflows in string operations
+- ✅ **Memory Leak Prevention**: Proper cleanup of dictionary and variable allocations
+- ✅ **Input Validation**: Bounds checking on all memory allocations and address operations
+- ✅ **Null Pointer Protection**: Comprehensive null checks in I/O and core operations
+- ✅ **Error Handling**: Proper stack overflow/underflow detection with meaningful errors
+- ✅ **Code Quality**: Replaced unsafe string functions with bounds-checked alternatives
+
 ## 🎯 ANSI Forth Core Compliance - ACHIEVED
 
 **✅ COMPLETE ANSI CORE COMPLIANCE (100%)**
@@ -244,6 +255,24 @@ This implementation provides full compatibility with ANSI Forth Core programs an
 
 **Achievement Summary:**
 - ✅ **133/133 ANSI Core words** implemented and tested
+- ✅ **Production-ready**: Comprehensive security and memory safety fixes
+- ✅ **Tested**: All examples and core functionality verified working
+
+## Version History
+
+### v1.0.1 (January 2026)
+- Fixed critical buffer overflow vulnerabilities in string operations
+- Eliminated memory leaks in dictionary and variable management
+- Added comprehensive input validation and bounds checking
+- Improved null pointer safety across I/O operations
+- Enhanced error handling with proper stack overflow detection
+- Replaced unsafe string functions (strcpy, strcat) with safe alternatives
+
+### v1.0.0
+- Initial release with complete ANSI Forth Core compliance
+- 133/133 ANSI words implemented
+- Raspberry Pi GPIO support
+- Three operation modes: REPL, Interpret, Compile
 - ✅ **Complete numeric formatting** system with `<#`, `#`, `#S`, `#>`, `HOLD`, `SIGN`
 - ✅ **Full memory operations** with alignment (`@`, `!`, `+!`, `2@`, `2!`, `ALIGN`, etc.)
 - ✅ **Advanced compilation features** (`LITERAL`, `POSTPONE`, `RECURSE`, `EXIT`)

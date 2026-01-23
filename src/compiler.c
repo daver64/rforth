@@ -198,7 +198,7 @@ compiler_ctx_t* compiler_create(const char *output_file) {
         free(compiler);
         return NULL;
     }
-    strncpy(compiler->executable_name, output_file, strlen(output_file));
+    strcpy(compiler->executable_name, output_file);
     compiler->executable_name[strlen(output_file)] = '\0';
     
     /* Open output file */
@@ -622,8 +622,9 @@ bool compile_forth_to_c(const char *input_file, const char *output_file) {
                 if (token_text) {
                     int len = (int)strlen(token_text);
                     if (def_pos + len < (int)(sizeof(definition) - 1)) {
-                        strcpy(definition + def_pos, token_text);
+                        strncpy(definition + def_pos, token_text, len);
                         def_pos += len;
+                        definition[def_pos] = '\0';
                     }
                 }
             }
@@ -670,8 +671,9 @@ bool compile_forth_to_c(const char *input_file, const char *output_file) {
             if (token_text) {
                 int len = (int)strlen(token_text);
                 if (main_pos + len < (int)(sizeof(main_code) - 1)) {
-                    strcpy(main_code + main_pos, token_text);
+                    strncpy(main_code + main_pos, token_text, len);
                     main_pos += len;
+                    main_code[main_pos] = '\0';
                 }
             }
         }

@@ -246,8 +246,9 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
                 fprintf(stderr, "Error: Memory allocation failed\n");
                 goto error;
             }
-            strncpy(word_name, name_token.text, strlen(name_token.text));
-            word_name[strlen(name_token.text)] = '\0';
+            size_t name_len = strlen(name_token.text);
+            strncpy(word_name, name_token.text, name_len);
+            word_name[name_len] = '\0';
             
             /* Initialize compile buffer */
             compile_buffer_size = COMPILE_BUFFER_INITIAL_SIZE;
@@ -316,11 +317,25 @@ int rforth_interpret_string(rforth_ctx_t *ctx, const char *input) {
             
             /* Add token to buffer */
             if (compile_buffer_pos > 0) {
-                strncat(compile_buffer, " ", compile_buffer_size - compile_buffer_pos - 1);
-                compile_buffer_pos++;
+                size_t available = compile_buffer_size - compile_buffer_pos - 1;
+                if (available > 0) {
+                    compile_buffer[compile_buffer_pos++] = ' ';
+                    compile_buffer[compile_buffer_pos] = '\0';
+                }
             }
-            strncat(compile_buffer, token_text, compile_buffer_size - compile_buffer_pos - 1);
-            compile_buffer_pos += (int)strlen(token_text);
+            
+            size_t token_len = strlen(token_text);
+            size_t available = compile_buffer_size - compile_buffer_pos - 1;
+            if (token_len < available) {
+                strncpy(compile_buffer + compile_buffer_pos, token_text, token_len);
+                compile_buffer_pos += token_len;
+                compile_buffer[compile_buffer_pos] = '\0';
+            } else {
+                /* Truncate if needed */
+                strncpy(compile_buffer + compile_buffer_pos, token_text, available);
+                compile_buffer_pos += available;
+                compile_buffer[compile_buffer_pos] = '\0';
+            }
             
         } else {
             /* Interpreting mode - execute token */

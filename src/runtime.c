@@ -27,19 +27,19 @@ static cell_t runtime_stack[DEFAULT_STACK_SIZE];
 static int runtime_sp = -1;
 
 void rf_push(cell_t value) {
-    if (runtime_sp < DEFAULT_STACK_SIZE - 1) {
-        runtime_stack[++runtime_sp] = value;
+    if (runtime_sp >= DEFAULT_STACK_SIZE - 1) {
+        fprintf(stderr, "Runtime error: Stack overflow\\n");
+        exit(1);
     }
+    runtime_stack[++runtime_sp] = value;
 }
 
 cell_t rf_pop(void) {
-    if (runtime_sp >= 0) {
-        return runtime_stack[runtime_sp--];
+    if (runtime_sp < 0) {
+        fprintf(stderr, "Runtime error: Stack underflow\\n");
+        exit(1);
     }
-    cell_t zero = {0};
-    zero.type = CELL_INT;
-    zero.value.i = 0;
-    return zero;
+    return runtime_stack[runtime_sp--];
 }
 
 void rf_print_num(cell_t value) {

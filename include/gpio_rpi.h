@@ -3,7 +3,10 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "rforth.h"
+#include "rpi_peripherals.h"
+
+/* Forward declaration */
+typedef struct rforth_ctx rforth_ctx_t;
 
 /* GPIO Error Codes */
 typedef enum {

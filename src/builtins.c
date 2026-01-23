@@ -16,6 +16,9 @@
     #define PRId64_PORTABLE PRId64
 #endif
 
+/* Minimum valid address for memory operations (avoid null and low memory) */
+#define MIN_VALID_ADDRESS 4096
+
 /* Forward declarations */
 static void builtin_add(rforth_ctx_t *ctx);
 static void builtin_sub(rforth_ctx_t *ctx);
@@ -1166,7 +1169,7 @@ static void builtin_c_fetch(rforth_ctx_t *ctx) {
     }
     
     /* Safety check - don't access null or very low addresses */
-    if (addr.value.i < 1024) {
+    if (addr.value.i < MIN_VALID_ADDRESS) {
         set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "C@ invalid address");
         return;
     }
@@ -1192,7 +1195,7 @@ static void builtin_c_store(rforth_ctx_t *ctx) {
     }
     
     /* Safety check - don't access null or very low addresses */
-    if (addr.value.i < 1024) {
+    if (addr.value.i < MIN_VALID_ADDRESS) {
         set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "C! invalid address");
         return;
     }
@@ -1331,8 +1334,8 @@ static void builtin_evaluate(rforth_ctx_t *ctx) {
         return;
     }
     
-    if (len.value.i < 0) {
-        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "EVALUATE length cannot be negative");
+    if (len.value.i < 0 || len.value.i > MAX_INPUT_LENGTH * 4) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "EVALUATE length invalid (negative or too large)");
         return;
     }
     
@@ -1586,11 +1589,12 @@ static void builtin_fetch(rforth_ctx_t *ctx) {
     }
     
     /* Treat address as direct pointer to cell */
-    cell_t *cell_ptr = (cell_t*)(uintptr_t)addr.value.i;
-    if (!cell_ptr) {
-        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "Invalid address");
+    if (addr.type != CELL_INT || addr.value.i < MIN_VALID_ADDRESS) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "@ invalid address");
         return;
     }
+    
+    cell_t *cell_ptr = (cell_t*)(uintptr_t)addr.value.i;
     
     /* Push cell value */
     stack_push_cell(ctx->data_stack, *cell_ptr);
@@ -1605,11 +1609,12 @@ static void builtin_store(rforth_ctx_t *ctx) {
     }
     
     /* Store value at direct cell address */
-    cell_t *cell_ptr = (cell_t*)(uintptr_t)addr.value.i;
-    if (!cell_ptr) {
-        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "Invalid address");
+    if (addr.type != CELL_INT || addr.value.i < MIN_VALID_ADDRESS) {
+        set_error_simple(ctx, RFORTH_ERROR_INVALID_ADDRESS, "! invalid address");
         return;
     }
+    
+    cell_t *cell_ptr = (cell_t*)(uintptr_t)addr.value.i;
     
     *cell_ptr = value;
 }
@@ -1687,6 +1692,10 @@ static void builtin_allot(rforth_ctx_t *ctx) {
     /* For simplified implementation, just advance HERE pointer */
     if (!ctx->here_ptr) {
         ctx->here_ptr = malloc(65536); /* Allocate dictionary space */
+        if (!ctx->here_ptr) {
+            set_error_simple(ctx, RFORTH_ERROR_MEMORY, "ALLOT memory allocation failed");
+            return;
+        }
     }
     ctx->here_ptr += n_cell.value.i;
 }
@@ -1707,6 +1716,10 @@ static void builtin_comma(rforth_ctx_t *ctx) {
     /* For simplified implementation, store at HERE */
     if (!ctx->here_ptr) {
         ctx->here_ptr = malloc(65536);
+        if (!ctx->here_ptr) {
+            set_error_simple(ctx, RFORTH_ERROR_MEMORY, ", memory allocation failed");
+            return;
+        }
     }
     *(cell_t*)ctx->here_ptr = value;
     ctx->here_ptr += sizeof(cell_t);
@@ -1727,6 +1740,10 @@ static void builtin_c_comma(rforth_ctx_t *ctx) {
     
     if (!ctx->here_ptr) {
         ctx->here_ptr = malloc(65536);
+        if (!ctx->here_ptr) {
+            set_error_simple(ctx, RFORTH_ERROR_MEMORY, "C, memory allocation failed");
+            return;
+        }
     }
     *(char*)ctx->here_ptr = (char)char_cell.value.i;
     ctx->here_ptr += 1;
@@ -2151,6 +2168,10 @@ static void builtin_align(rforth_ctx_t *ctx) {
     /* ALIGN - Align dictionary pointer ( -- ) */
     if (!ctx->here_ptr) {
         ctx->here_ptr = malloc(65536);
+        if (!ctx->here_ptr) {
+            set_error_simple(ctx, RFORTH_ERROR_MEMORY, "ALIGN memory allocation failed");
+            return;
+        }
     }
     
     /* Align to cell boundary (8 bytes on 64-bit systems) */
@@ -2674,13 +2695,27 @@ static void builtin_constant(rforth_ctx_t *ctx) {
     }
     
     /* Create constant (like variable but initialized) */
+    char const_name[64];
+    snprintf(const_name, sizeof(const_name), "const_%" PRId64_PORTABLE, name_cell.value.i);
+    
+    /* Check if constant already exists */
+    variable_entry_t *existing = find_variable(ctx, const_name);
+    if (existing) {
+        /* Update existing constant value */
+        existing->value = value;
+        uintptr_t addr = (uintptr_t)existing;
+        stack_push_int(ctx->data_stack, (int64_t)addr);
+        return;
+    }
+    
     variable_entry_t *var = malloc(sizeof(variable_entry_t));
     if (!var) {
         set_error_simple(ctx, RFORTH_ERROR_MEMORY, "Failed to allocate constant");
         return;
     }
     
-    snprintf(var->name, sizeof(var->name), "const_%" PRId64_PORTABLE, name_cell.value.i);
+    strncpy(var->name, const_name, sizeof(var->name) - 1);
+    var->name[sizeof(var->name) - 1] = '\0';
     var->value = value;
     var->next = ctx->variables;
     ctx->variables = var;

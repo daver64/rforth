@@ -22,6 +22,9 @@ typedef struct {
 } terminal_ctx_t;
 
 static int terminal_read_char(void) {
+    if (!g_io_ctx || !g_io_ctx->current || !g_io_ctx->current->context) {
+        return EOF;
+    }
     terminal_ctx_t *ctx = (terminal_ctx_t*)g_io_ctx->current->context;
     return fgetc(ctx->input);
 }
@@ -58,30 +61,45 @@ static bool terminal_data_available(void) {
 }
 
 static void terminal_write_char(char c) {
+    if (!g_io_ctx || !g_io_ctx->current || !g_io_ctx->current->context) {
+        return;
+    }
     terminal_ctx_t *ctx = (terminal_ctx_t*)g_io_ctx->current->context;
     fputc(c, ctx->output);
     fflush(ctx->output);
 }
 
 static void terminal_write_string(const char *str) {
+    if (!g_io_ctx || !g_io_ctx->current || !g_io_ctx->current->context || !str) {
+        return;
+    }
     terminal_ctx_t *ctx = (terminal_ctx_t*)g_io_ctx->current->context;
     fputs(str, ctx->output);
     fflush(ctx->output);
 }
 
 static void terminal_write_number(int64_t n) {
+    if (!g_io_ctx || !g_io_ctx->current || !g_io_ctx->current->context) {
+        return;
+    }
     terminal_ctx_t *ctx = (terminal_ctx_t*)g_io_ctx->current->context;
     fprintf(ctx->output, "%ld ", (long)n);
     fflush(ctx->output);
 }
 
 static void terminal_newline(void) {
+    if (!g_io_ctx || !g_io_ctx->current || !g_io_ctx->current->context) {
+        return;
+    }
     terminal_ctx_t *ctx = (terminal_ctx_t*)g_io_ctx->current->context;
     fputc('\n', ctx->output);
     fflush(ctx->output);
 }
 
 static void terminal_error_string(const char *str) {
+    if (!g_io_ctx || !g_io_ctx->current || !g_io_ctx->current->context || !str) {
+        return;
+    }
     terminal_ctx_t *ctx = (terminal_ctx_t*)g_io_ctx->current->context;
     fputs(str, ctx->error);
     fflush(ctx->error);

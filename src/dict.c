@@ -47,14 +47,15 @@ word_t* dict_find(dict_t *dict, const char *name) {
 }
 
 static word_t* dict_create_word(const char *name) {
-    if (!name || strlen(name) >= MAX_WORD_LENGTH) {
+    if (!name || strlen(name) > MAX_WORD_LENGTH - 1) {
         return NULL;
     }
     
     word_t *word = malloc(sizeof(word_t));
     if (!word) return NULL;
     
-    strcpy(word->name, name);
+    strncpy(word->name, name, MAX_WORD_LENGTH - 1);
+    word->name[MAX_WORD_LENGTH - 1] = '\0';
     word->next = NULL;
     return word;
 }
@@ -62,10 +63,23 @@ static word_t* dict_create_word(const char *name) {
 static bool dict_add_word(dict_t *dict, word_t *word) {
     if (!dict || !word) return false;
     
-    /* Check if word already exists */
-    if (dict_find(dict, word->name)) {
-        /* Allow redefinition - remove old word */
-        /* For now, just add to front (shadows old definition) */
+    /* Check if word already exists and remove it to prevent memory leak */
+    word_t *existing = dict_find(dict, word->name);
+    if (existing) {
+        /* Remove old word from dictionary */
+        word_t **current = &dict->latest;
+        while (*current) {
+            if (*current == existing) {
+                *current = existing->next;
+                if (existing->type == WORD_USER && existing->code.definition) {
+                    free(existing->code.definition);
+                }
+                free(existing);
+                dict->count--;
+                break;
+            }
+            current = &(*current)->next;
+        }
     }
     
     word->next = dict->latest;
@@ -93,12 +107,14 @@ bool dict_add_user_word(dict_t *dict, const char *name, const char *definition) 
     if (!word) return false;
     
     /* Copy definition string */
-    word->code.definition = malloc(strlen(definition) + 1);
+    size_t def_len = strlen(definition);
+    word->code.definition = malloc(def_len + 1);
     if (!word->code.definition) {
         free(word);
         return false;
     }
-    strcpy(word->code.definition, definition);
+    strncpy(word->code.definition, definition, def_len);
+    word->code.definition[def_len] = '\0';
     
     word->type = WORD_USER;
     

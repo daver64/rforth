@@ -1,4 +1,5 @@
 #include "gpio_rpi.h"
+#include "rforth.h"
 #include "rpi_peripherals.h"
 #include <stdio.h>
 #include <stdlib.h>
